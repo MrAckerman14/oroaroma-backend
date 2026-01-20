@@ -5,18 +5,69 @@ export const up = (queryInterface, Sequelize) => queryInterface.createTable('use
     primaryKey: true,
     type: Sequelize.INTEGER,
   },
-  firstName: {
+  name: {
     allowNull: false,
-    type: Sequelize.STRING(30),
+    type: Sequelize.STRING,
   },
-  lastName: {
-    allowNull: false,
-    type: Sequelize.STRING(30),
+
+  count_delivery: {
+    allowNull: true,
+    type: Sequelize.INTEGER,
   },
+
+   money_delivery: {
+    allowNull: true,
+    type: Sequelize.INTEGER,
+  },
+
+   average: {
+    allowNull: true,
+    type: Sequelize.INTEGER,
+  },
+
+   amount_pending: {
+    allowNull: true,
+    type: Sequelize.INTEGER,
+  },
+
+   status: {
+    allowNull: true,
+    type: Sequelize.STRING,
+  },
+
+   count_perfum: {
+    allowNull: true,
+    type: Sequelize.INTEGER,
+  },
+
+   cash_delivery: {
+    allowNull: true,
+    type: Sequelize.INTEGER,
+  },
+
+   cash_perfume: {
+    allowNull: true,
+    type: Sequelize.INTEGER,
+  },
+
+   cash_net: {
+    allowNull: true,
+    type: Sequelize.INTEGER,
+  },
+
+   cashrol_net: {
+    allowNull: true,
+    type: Sequelize.INTEGER,
+  },
+
+   rol: {
+    allowNull: true,
+    type: Sequelize.STRING,
+  },
+  
   email: {
-    allowNull: false,
+    allowNull: true,
     type: Sequelize.STRING(50),
-    unique: true,
   },
   password: {
     allowNull: false,
@@ -30,6 +81,10 @@ export const up = (queryInterface, Sequelize) => queryInterface.createTable('use
     allowNull: false,
     type: Sequelize.DATE,
   },
+  deletedAt: {
+    allowNull: true,
+    type: Sequelize.DATE,
+  }
 });
 
 export const down = (queryInterface) => queryInterface.dropTable('users');

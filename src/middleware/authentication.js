@@ -9,26 +9,29 @@ export default async function authenticate(req, res, next) {
   // Firstly, set request user to null
   req.user = null;
 
+  // console.log(req.path)
+  if(req.path == "/auth/login" || req.path == "/auth/register" || req.path == "/users/create-admin")return next();
+
   // Check for empty Authorization header
   if (!authorization) {
-    return next();
+    return res.status(401).json({ data: "No tienes acceso!" });
   }
 
   // Make sure the token is bearer token
   if (!authorization.startsWith('Bearer ')) {
-    return next();
+    return res.status(401).json({ data: "Acceso denegado" });
   }
 
   // Extract token from header
   const token = authorization.substring(7);
-  const tokenData = await tokenHelper.verifyToken(token);
+  const tokenData = await tokenHelper.verifyToken(token)
 
   // Find user from database
   const user = await db.models.user.findByPk(tokenData.id).catch(() => null);
 
   // Check if user exists
   if (!user) {
-    return next({ status: 401, message: 'There is no user' });
+    return res.status(401).json({ data: "Acceso denegado" });
   }
 
   // Set request user
@@ -49,7 +52,7 @@ export default async function authenticate(req, res, next) {
     if (refreshTokenData.id === tokenData.id) {
       // Generate new tokens
       const newToken = user.generateToken();
-      const newRefreshToken = user.generateToken('2h');
+      const newRefreshToken = user.generateToken('12h');
 
       // Set response headers
       res.setHeader('Token', newToken);

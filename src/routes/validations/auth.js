@@ -6,16 +6,17 @@ export const loginRules = [
 ];
 
 export const registerRules = [
-  body('firstName').exists(),
-  body('lastName').exists(),
+  body('name').exists(),
   body('email').isEmail().exists(),
   body('password').isLength({ min: 6 }).exists(),
+  body('rol').exists()
 ];
 
 export const updateProfileRules = [
-  body('firstName').optional(),
-  body('lastName').optional(),
-  body('email').isEmail().optional(),
+  body('name').exists(),
+  body('email').isEmail().exists(),
+  body('password').isLength({ min: 6 }).exists(),
+  body('rol').exists()
 ];
 
 export const changePasswordRules = [

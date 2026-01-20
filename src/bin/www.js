@@ -34,7 +34,7 @@ const server = http.createServer(app);
  * Listen on provided port, on all network interfaces.
  */
 
-db.authenticate()
+db.sequelize.authenticate()
   .then(() => {
     server.listen(port);
     server.on('error', onError);

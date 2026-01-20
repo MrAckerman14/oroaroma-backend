@@ -7,6 +7,7 @@ import compression from 'compression';
 import createError from 'http-errors';
 import cookieParser from 'cookie-parser';
 import * as Sentry from '@sentry/node';
+import path from 'path'
 
 import * as configs from '@/config';
 import { authenticationMiddleware, sentryMiddleware } from '@/middleware';
@@ -14,6 +15,8 @@ import { authenticationMiddleware, sentryMiddleware } from '@/middleware';
 const { NODE_ENV } = process.env;
 
 const app = express();
+app.use('/uploads', express.static(path.resolve('uploads')))
+
 
 // Initialize sentry
 if (NODE_ENV !== 'development') {

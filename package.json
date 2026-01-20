@@ -14,7 +14,7 @@
   "scripts": {
     "build": "babel src --out-dir dist",
     "start": "node ./dist/bin/www.js",
-    "start:dev": "nodemon --ignore dist/ --ignore test/ --exec babel-node ./src/bin/www.js",
+    "dev": "nodemon --ignore dist/ --ignore test/ --exec babel-node ./src/bin/www.js",
     "lint": "eslint .",
     "lint:fix": "eslint . --fix",
     "test": "NODE_ENV=test mocha --require @babel/register --exit",
@@ -27,6 +27,7 @@
     "compression": "^1.7.4",
     "cookie-parser": "~1.4.4",
     "cors": "^2.8.5",
+    "dayjs": "^1.11.19",
     "debug": "~2.6.9",
     "dotenv": "^8.2.0",
     "express": "~4.16.1",
@@ -34,12 +35,14 @@
     "http-errors": "~1.6.3",
     "jsonwebtoken": "^8.5.1",
     "morgan": "~1.9.1",
+    "multer": "^2.0.2",
     "nodemailer": "^6.4.16",
     "pg": "^8.7.3",
     "pg-hstore": "^2.3.4",
     "redis": "^3.1.1",
     "sequelize": "^6.20.1",
-    "swagger-ui-express": "^4.1.4"
+    "swagger-ui-express": "^4.1.4",
+    "uuid": "^13.0.0"
   },
   "devDependencies": {
     "@babel/cli": "^7.8.4",

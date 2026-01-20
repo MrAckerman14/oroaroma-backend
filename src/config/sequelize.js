@@ -1,7 +1,7 @@
 import 'dotenv/config';
 
 const {
-  DB_HOST, DB_PORT = 5432, DB_NAME, DB_USER, DB_PASSWORD,
+  DB_HOST, DB_PORT = 5432, DB_NAME, DB_USER, DB_PASSWORD, DATABASE_URL
 } = process.env;
 
 const defaultConfig = {
@@ -18,7 +18,16 @@ const defaultConfig = {
 };
 
 export const development = {
-  ...defaultConfig,
+  use_env_variable: 'DATABASE_URL',
+  dialect: 'postgres',
+  define: { paranoid: true },
+  dialectOptions: {
+    ssl: {
+      require: true,       // obliga SSL
+      rejectUnauthorized: false, // necesario en Render
+    },
+  },
+   logging: false,
 };
 
 export const test = {

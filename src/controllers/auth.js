@@ -1,6 +1,7 @@
 import createError from 'http-errors';
 
 import db from '@/database';
+import { tokenHelper } from '@/helpers';
 
 /**
  * POST /auth/login
@@ -23,10 +24,14 @@ export const login = async (req, res, next) => {
     }
 
     // Generate and return token
-    const token = user.generateToken();
-    const refreshToken = user.generateToken('2h');
-    return res.status(200).json({ token, refreshToken });
+    const token = tokenHelper.generateToken({ id: user.id,  name: user.name, rol: user.rol, email: user.email });
+    // const refreshToken = tokenHelper.generateToken('12h');
+    return res.status(200).json({ token, user: {
+      name: user.name,
+      rol: user.rol
+    }});
   } catch (err) {
+    console.log("error: ",err)
     return next(err);
   }
 };
@@ -38,9 +43,11 @@ export const login = async (req, res, next) => {
 export const register = async (req, res, next) => {
   try {
     // Create user
+    if(req.body.rol == 'Admin')return res.status(403).json({ data: "Rol no permitido" })
+      req.body.status = "Activo";
     const user = await db.models.user
       .create(req.body, {
-        fields: ['firstName', 'lastName', 'email', 'password'],
+        fields: ['name', 'email', 'password', 'rol', 'status'],
       });
 
     // Generate and return tokens
