@@ -15,9 +15,6 @@ const days = dayjs().diff(Dfrom, "day") + 1;
             [Op.between]: [from, to],
         };
        }
-    //    where.state = "Finalizado"
-        // const from = req.body.from
-        // const to = req.body.to
 
     const messengers = await db.models.user.findAll({
         where: { rol: 'Mensajero' },
@@ -41,14 +38,14 @@ const days = dayjs().diff(Dfrom, "day") + 1;
                 SUM(
                 CASE 
                     WHEN "messenger"."state" = 'Entrega pendiente'
-                    AND "messenger"."type_pay" = 'Efectivo'
+                    AND "messenger"."type_pay" = 1
                     THEN COALESCE("messenger"."amount", 0)
                     ELSE 0
                 END
                 )
             `),
             'money_pending'
-            ]
+            ],
 
             [db.sequelize.literal(
                 `SUM(CASE WHEN "messenger"."state" = 'Finalizado' THEN COALESCE("messenger"."delivery_pay", 0) ELSE 0 END)`
