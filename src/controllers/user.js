@@ -29,9 +29,19 @@ const days = dayjs().diff(Dfrom, "day") + 1;
             'id','name', 'email', 'rol','status',
 
             // [db.sequelize.fn('COUNT', db.sequelize.col('messenger.id')), 'count_delivery'],
-           [db.sequelize.literal(
-                `COUNT(CASE WHEN "messenger"."state" = 'Finalizado' THEN COALESCE("messenger"."id", 0) ELSE 0 END)`
-            ), 'count_delivery'],
+        //    [db.sequelize.literal(
+        //         `COUNT(CASE WHEN "messenger"."state" = 'Finalizado' THEN COALESCE("messenger"."id", 0) ELSE 0 END)`
+        //     ), 'count_delivery'],
+
+            [db.sequelize.literal(`
+                SUM(
+                    CASE 
+                        WHEN "messenger"."state" = 'Finalizado' 
+                        THEN 1 
+                        ELSE 0 
+                    END
+                )
+            `), 'count_delivery'],
             // [db.sequelize.fn('SUM', db.sequelize.col('messenger.delivery_pay')), 'money_delivery'],
             [
             db.sequelize.literal(`
