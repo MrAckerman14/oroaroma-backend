@@ -175,85 +175,89 @@ export const getClosureDetails = async (req, res) => {
         [db.sequelize.fn('COUNT', db.sequelize.col('sale.id')), 'deliveries'],
         [db.sequelize.fn('SUM', db.sequelize.col('delivery_pay')), 'earned']
       ],
-      where,
+      where: {
+        ...where,
+        state: "Finalizado"
+      },
       include: [{ model: db.models.user, as: 'messenger', attributes: ['id', 'name'] }],
       group: ['messenger_id', 'messenger.id'],
       raw: true
     })
 
     // Vendedores
-    const sellers = await db.models.sale.findAll({
-      attributes: [
-        'seller_id',
+   const sellers = await db.models.sale.findAll({
+    attributes: [
+      'seller_id',
 
-        // Total vendido
-        [db.sequelize.fn('SUM', db.sequelize.col('sale.amount')), 'sold'],
-
-        // Total perfumes
-        [db.sequelize.fn('SUM', db.sequelize.col('sale.count_perfume')), 'perfumes'],
-
-        // Cantidad de pedidos
-        [db.sequelize.fn('COUNT', db.sequelize.col('sale.id')), 'orders'],
-
-        // Cantidad de envíos
-        [
-          db.sequelize.fn(
-            'SUM',
-            db.sequelize.literal(`CASE WHEN sale.messenger_id IS NOT NULL THEN 1 ELSE 0 END`)
-          ),
-          'deliveries'
-        ],
-
-        // Costo mensajería
-        [
-          db.sequelize.fn(
-            'SUM',
-            db.sequelize.literal(`CASE WHEN sale.messenger_id IS NOT NULL THEN sale.delivery_pay ELSE 0 END`)
-          ),
-          'delivery_cost'
-        ],
-
-        // 🔥 COSTO DE PERFUMES (cantidad * precio de venta)
-        [
-          db.sequelize.fn(
-            'SUM',
-            db.sequelize.literal(`"details"."count" * "details->product"."sale_price"`)
-          ),
-          'perfume_cost'
-        ]
-
-        // [
-        //   db.sequelize.fn(
-        //     'SUM',
-        //     db.sequelize.literal(`saleDetails.count * store.sale_price`)
-        //   ),
-        //   'perfume_cost'
-        // ]
+      // Usamos DISTINCT para que si la venta se repite por el JOIN de detalles, 
+      // solo sume el amount una vez por cada ID de venta único.
+      [
+        db.sequelize.literal('SUM(DISTINCT "sale"."amount")'), 
+        'sold'
       ],
-      where: {
-        ...where,
-        seller_id: { [Op.not]: null }
+
+      // Total perfumes de la tabla padre (usando DISTINCT también)
+      [
+        db.sequelize.literal('SUM(DISTINCT "sale"."count_perfume")'), 
+        'perfumes'
+      ],
+
+      // Cantidad de pedidos únicos
+      [
+        db.sequelize.fn('COUNT', db.sequelize.fn('DISTINCT', db.sequelize.col('sale.id'))), 
+        'orders'
+      ],
+
+      // Cantidad de envíos (ajustado con DISTINCT para evitar duplicados por el JOIN)
+      [
+        db.sequelize.literal(`
+          COUNT(DISTINCT CASE WHEN "sale"."messenger_id" IS NOT NULL THEN "sale"."id" ELSE NULL END)
+        `),
+        'deliveries'
+      ],
+
+      // Costo mensajería (aquí es más complejo con DISTINCT, mejor usar un promedio si el valor es fijo por venta)
+      [
+        db.sequelize.literal(`
+          SUM(DISTINCT "sale"."delivery_pay") FILTER (WHERE "sale"."messenger_id" IS NOT NULL)
+        `),
+        'delivery_cost'
+      ],
+
+      // Este NO lleva DISTINCT porque aquí sí queremos sumar todos los registros de la tabla detalles
+      [
+        db.sequelize.fn(
+          'SUM',
+          db.sequelize.literal(`"details"."count" * "details->product"."sale_price"`)
+        ),
+        'perfume_cost'
+      ]
+    ],
+    where: {
+      ...where,
+      seller_id: { [Op.not]: null },
+      state: "Finalizado"
+    },
+    include: [
+      {
+        model: db.models.user,
+        as: 'seller',
+        attributes: ['name'] // No necesitas el ID aquí si ya está en group
       },
-      include: [
-        {
-          model: db.models.user,
-          as: 'seller',
-          attributes: ['id', 'name']
-        },
-        {
-          model: db.models.saleDetail,
-          as: 'details',
-          attributes: [],
-          include: [{
-            model: db.models.stores,
-            as: 'product',
-            attributes: []
-          }]
-        }
-      ],
-      group: ['seller_id', 'seller.id'],
-      raw: true
-    })
+      {
+        model: db.models.saleDetail,
+        as: 'details',
+        attributes: [],
+        include: [{
+          model: db.models.stores,
+          as: 'product',
+          attributes: []
+        }]
+      }
+    ],
+    group: ['seller_id', 'seller.id', 'seller.name'],
+    raw: true
+  });
 
     const sellersWithPending = sellers.map(s => {
   const sold = Number(s.sold || 0)
@@ -274,7 +278,7 @@ export const getClosureDetails = async (req, res) => {
       ],
       where: {
         ...where,
-        seller_id: null   // 🔥 CLAVE
+        state: "Finalizado"
       },
       include: [{
         model: db.models.user,
