@@ -78,8 +78,7 @@ export const report_cash_reconciliation = async (req, res) => {
                 [db.sequelize.fn('SUM', db.sequelize.col('delivery_pay')), 'messenger_cost']
             ],
             where: {
-                createdAt: { [Op.between]: [from, to] },
-                seller_id: null
+                createdAt: { [Op.between]: [from, to] }
             },
             include: [{
                 model: db.models.user,
@@ -169,46 +168,72 @@ export const getClosureDetails = async (req, res) => {
     const net_total = Number(totals.total_cash || 0) - Number(totals.total_messenger_cost || 0)
 
     // Mensajeros
-    const messengers = await db.models.sale.findAll({
-      attributes: [
-        'messenger_id',
-        [db.sequelize.fn('COUNT', db.sequelize.col('sale.id')), 'deliveries'],
-        [db.sequelize.fn('SUM', db.sequelize.col('delivery_pay')), 'earned']
-      ],
-      where: {
-        ...where,
-        state: "Finalizado"
-      },
-      include: [{ model: db.models.user, as: 'messenger', attributes: ['id', 'name'] }],
-      group: ['messenger_id', 'messenger.id'],
-      raw: true
-    })
-
+    const messengers = await db.models.user.findAll({
+            where: { rol: 'Mensajero' },
+            include: [{
+                model: db.models.sale,
+                as: 'messenger',
+                attributes: [],
+                where,
+                required: false
+            }],
+            attributes: [
+                'id','name', 'email', 'rol','status',
+                    [db.sequelize.literal(`
+                    COUNT(
+                        CASE 
+                            WHEN "messenger"."state" IN ('Finalizado', 'Cancelado') 
+                            THEN "messenger"."id" 
+                            ELSE NULL 
+                        END
+                    )
+                `), 'deliveries'],
+                [
+                db.sequelize.literal(`
+                    SUM(
+                    CASE 
+                        WHEN "messenger"."state" = 'Entrega pendiente'
+                        AND "messenger"."type_pay" = 1
+                        THEN COALESCE("messenger"."amount", 0)
+                        ELSE 0
+                    END
+                    )
+                `),
+                'money_pending'
+                ],
+                
+                [db.sequelize.literal(`
+                    SUM(
+                        CASE 
+                            WHEN "messenger"."state" = 'Entrega pendiente' 
+                            THEN COALESCE("messenger"."delivery_pay", 0)
+                            ELSE 0
+                        END
+                    )
+                `), 'earned']
+            ],
+            group: ['user.id']
+        });
+    
     // Vendedores
    const sellers = await db.models.sale.findAll({
     attributes: [
       'seller_id',
-
-      // Usamos DISTINCT para que si la venta se repite por el JOIN de detalles, 
-      // solo sume el amount una vez por cada ID de venta único.
       [
         db.sequelize.literal('SUM(DISTINCT "sale"."amount")'), 
         'sold'
       ],
 
-      // Total perfumes de la tabla padre (usando DISTINCT también)
       [
         db.sequelize.literal('SUM(DISTINCT "sale"."count_perfume")'), 
         'perfumes'
       ],
 
-      // Cantidad de pedidos únicos
       [
         db.sequelize.fn('COUNT', db.sequelize.fn('DISTINCT', db.sequelize.col('sale.id'))), 
         'orders'
       ],
 
-      // Cantidad de envíos (ajustado con DISTINCT para evitar duplicados por el JOIN)
       [
         db.sequelize.literal(`
           COUNT(DISTINCT CASE WHEN "sale"."messenger_id" IS NOT NULL THEN "sale"."id" ELSE NULL END)
@@ -216,7 +241,6 @@ export const getClosureDetails = async (req, res) => {
         'deliveries'
       ],
 
-      // Costo mensajería (aquí es más complejo con DISTINCT, mejor usar un promedio si el valor es fijo por venta)
       [
         db.sequelize.literal(`
           SUM(DISTINCT "sale"."delivery_pay") FILTER (WHERE "sale"."messenger_id" IS NOT NULL)
@@ -224,7 +248,6 @@ export const getClosureDetails = async (req, res) => {
         'delivery_cost'
       ],
 
-      // Este NO lleva DISTINCT porque aquí sí queremos sumar todos los registros de la tabla detalles
       [
         db.sequelize.fn(
           'SUM',
@@ -242,7 +265,7 @@ export const getClosureDetails = async (req, res) => {
       {
         model: db.models.user,
         as: 'seller',
-        attributes: ['name'] // No necesitas el ID aquí si ya está en group
+        attributes: ['name'] 
       },
       {
         model: db.models.saleDetail,
@@ -259,15 +282,15 @@ export const getClosureDetails = async (req, res) => {
     raw: true
   });
 
-    const sellersWithPending = sellers.map(s => {
-  const sold = Number(s.sold || 0)
-  const perfumeCost = Number(s.perfume_cost || 0)
+//     const sellersWithPending = sellers.map(s => {
+//   const sold = Number(s.sold || 0)
+//   const perfumeCost = Number(s.perfume_cost || 0)
 
-  return {
-    ...s,
-    pending_payment: sold - perfumeCost
-  }
-})
+//   return {
+//     ...s,
+//     pending_payment: sold - perfumeCost
+//   }
+// })
 
     // Empleados
     const employees = await db.models.sale.findAll({
@@ -289,18 +312,6 @@ export const getClosureDetails = async (req, res) => {
       raw: true
     })
 
-    // const employees = await db.models.sale.findAll({
-    //   attributes: [
-    //     'employee_id',
-    //     [db.sequelize.fn('SUM', db.sequelize.col('amount')), 'sold'],
-    //     [db.sequelize.fn('COUNT', db.sequelize.col('sale.id')), 'orders']
-    //   ],
-    //   where,
-    //   include: [{ model: db.models.user, as: 'employee', attributes: ['id', 'name'] }],
-    //   group: ['employee_id', 'employee.id'],
-    //   raw: true
-    // })
-
     // Ventas detalladas
     const sales = await db.models.sale.findAll({
       where,
@@ -312,11 +323,12 @@ export const getClosureDetails = async (req, res) => {
       order: [['createdAt', 'ASC']]
     })
 
+
     return res.json({
       closure,
       totals: { ...totals, net_total },
       messengers,
-      sellers: sellersWithPending,
+      sellers: sellers,
       employees,
       sales
     })

@@ -27,23 +27,15 @@ const days = dayjs().diff(Dfrom, "day") + 1;
         }],
         attributes: [
             'id','name', 'email', 'rol','status',
-
-            // [db.sequelize.fn('COUNT', db.sequelize.col('messenger.id')), 'count_delivery'],
-        //    [db.sequelize.literal(
-        //         `COUNT(CASE WHEN "messenger"."state" = 'Finalizado' THEN COALESCE("messenger"."id", 0) ELSE 0 END)`
-        //     ), 'count_delivery'],
-
-            // [db.sequelize.literal(`
-            //     SUM(
-            //         CASE 
-            //             WHEN "messenger"."state" = 'Finalizado' 
-            //             THEN 1 
-            //             ELSE 0 
-            //         END
-            //     )
-            // `), 'count_delivery'],
-            [db.sequelize.literal(`COUNT("messenger"."id")`), 'count_delivery'],
-            // [db.sequelize.fn('SUM', db.sequelize.col('messenger.delivery_pay')), 'money_delivery'],
+                [db.sequelize.literal(`
+                COUNT(
+                    CASE 
+                        WHEN "messenger"."state" IN ('Finalizado', 'Cancelado') 
+                        THEN "messenger"."id" 
+                        ELSE NULL 
+                    END
+                )
+            `), 'count_delivery'],
             [
             db.sequelize.literal(`
                 SUM(
@@ -57,11 +49,16 @@ const days = dayjs().diff(Dfrom, "day") + 1;
             `),
             'money_pending'
             ],
-
-            // [db.sequelize.literal(
-            //     `SUM(CASE WHEN "messenger"."state" = 'Finalizado' THEN COALESCE("messenger"."delivery_pay", 0) ELSE 0 END)`
-            // ), 'delivery_pay']
-            [db.sequelize.literal(`SUM(COALESCE("messenger"."delivery_pay", 0))`), 'delivery_pay']
+            
+            [db.sequelize.literal(`
+                SUM(
+                    CASE 
+                        WHEN "messenger"."state" = 'Entrega pendiente' 
+                        THEN COALESCE("messenger"."delivery_pay", 0)
+                        ELSE 0
+                    END
+                )
+            `), 'delivery_pay']
         ],
         group: ['user.id']
     });

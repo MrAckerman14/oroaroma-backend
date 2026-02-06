@@ -237,7 +237,7 @@ export const createClosure = async (req, res) => {
       const sales = await db.models.sale.findAll({
         where: {
           createdAt: { [Op.between]: [dateFrom, dateTo] },
-          closedIn: null,
+          // closedIn: null,
         },
         transaction: t,
         lock: t.LOCK.UPDATE,
