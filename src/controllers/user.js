@@ -33,15 +33,16 @@ const days = dayjs().diff(Dfrom, "day") + 1;
         //         `COUNT(CASE WHEN "messenger"."state" = 'Finalizado' THEN COALESCE("messenger"."id", 0) ELSE 0 END)`
         //     ), 'count_delivery'],
 
-            [db.sequelize.literal(`
-                SUM(
-                    CASE 
-                        WHEN "messenger"."state" = 'Finalizado' 
-                        THEN 1 
-                        ELSE 0 
-                    END
-                )
-            `), 'count_delivery'],
+            // [db.sequelize.literal(`
+            //     SUM(
+            //         CASE 
+            //             WHEN "messenger"."state" = 'Finalizado' 
+            //             THEN 1 
+            //             ELSE 0 
+            //         END
+            //     )
+            // `), 'count_delivery'],
+            [db.sequelize.literal(`COUNT("messenger"."id")`), 'count_delivery'],
             // [db.sequelize.fn('SUM', db.sequelize.col('messenger.delivery_pay')), 'money_delivery'],
             [
             db.sequelize.literal(`
@@ -57,9 +58,10 @@ const days = dayjs().diff(Dfrom, "day") + 1;
             'money_pending'
             ],
 
-            [db.sequelize.literal(
-                `SUM(CASE WHEN "messenger"."state" = 'Finalizado' THEN COALESCE("messenger"."delivery_pay", 0) ELSE 0 END)`
-            ), 'delivery_pay']
+            // [db.sequelize.literal(
+            //     `SUM(CASE WHEN "messenger"."state" = 'Finalizado' THEN COALESCE("messenger"."delivery_pay", 0) ELSE 0 END)`
+            // ), 'delivery_pay']
+            [db.sequelize.literal(`SUM(COALESCE("messenger"."delivery_pay", 0))`), 'delivery_pay']
         ],
         group: ['user.id']
     });
@@ -179,7 +181,14 @@ export const updateUser = async (req, res) => {
             req.body.password =  await hash(req.body.password, 10);
         }
 
-        const user = db.models.user.update(req.body, { where: { id: req.params.id}});
+        const data = { 
+            name: req.body.name,
+            password: req.body.password,
+            rol: req.body.rol,
+            email: req.body.email
+        }
+
+        const user = db.models.user.update(data, { where: { id: req.params.id}});
         if(!user)return res.status(403).json({  data: "Error al editar usuario"});
             return res.status(200).json({ data: "Actualizado!"});
     }catch(err){
