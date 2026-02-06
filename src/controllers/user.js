@@ -68,57 +68,136 @@ const days = dayjs().diff(Dfrom, "day") + 1;
 
     const sellers = await db.models.user.findAll({
         where: { rol: 'Vendedor' },
+        attributes: [
+            'id', 'name', 'email', 'rol', 'status',
+            
+            [db.sequelize.literal(
+                `COUNT(DISTINCT CASE WHEN "seller"."state" = 'Finalizado' THEN "seller"."id" END)`
+            ), 'count_delivery'],
+
+            [db.sequelize.literal(
+                `SUM(DISTINCT CASE WHEN "seller"."state" = 'Finalizado' THEN COALESCE("seller"."count_perfume", 0) ELSE 0 END)`
+            ), 'count_perfum'],
+
+            [db.sequelize.literal(
+                `SUM(DISTINCT CASE WHEN "seller"."state" = 'Finalizado' THEN COALESCE("seller"."delivery_pay", 0) ELSE 0 END)`
+            ), 'money_delivery'],
+
+            [db.sequelize.literal(
+                `SUM(DISTINCT CASE WHEN "seller"."state" = 'Finalizado' THEN COALESCE("seller"."amount", 0) ELSE 0 END)`
+            ), 'cash_perfume'],
+
+            [db.sequelize.literal(
+                `SUM(CASE WHEN "seller"."state" = 'Finalizado' THEN COALESCE("seller->details"."count", 0) * COALESCE("seller->details->product"."sale_price", 0) ELSE 0 END)`
+            ), 'perfume_money_pay'],
+
+            // [db.sequelize.literal(
+            //     `SUM(DISTINCT CASE WHEN "seller"."state" = 'Finalizado' THEN COALESCE("seller"."amount", 0) - COALESCE("seller"."delivery_pay", 0) ELSE 0 END)`
+            // ), 'cash_net']
+        //     [db.sequelize.literal(`
+        //     SUM(DISTINCT CASE WHEN "seller"."state" = 'Finalizado' THEN COALESCE("seller"."amount", 0) -
+        //     COALESCE("seller"."delivery_pay", 0) ELSE 0 END)
+        //     - 
+        //     SUM(CASE WHEN "seller"."state" = 'Finalizado' THEN COALESCE("seller->details"."count", 0) * COALESCE("seller->details->product"."purchase_price", 0) ELSE 0 END)
+        // `), 'cash_net']
+        ],
         include: [{
             model: db.models.sale,
             as: 'seller',
             attributes: [],
-            where,
-            required: false
+            where, 
+            required: false,
+            include: [{
+                model: db.models.saleDetail,
+                as: 'details',
+                attributes: [],
+                include: [{
+                    model: db.models.stores,
+                    as: 'product',
+                    attributes: []
+                }]
+            }]
         }],
-        attributes: [
-            'id','name', 'email', 'rol','status',
-            // [db.sequelize.fn('COUNT', db.sequelize.col('seller.id')), 'count_delivery'],
-            // [db.sequelize.fn('SUM', db.sequelize.col('seller.count_perfume')), 'count_perfum'],
-            // [db.sequelize.fn('SUM', db.sequelize.col('seller.delivery_pay')), 'money_delivery'],
-            // [db.sequelize.fn('SUM', db.sequelize.col('seller.amount')), 'cash_perfume'],
-
-            // [
-            // db.sequelize.literal(``),
-            // 'cash_net'
-            // ],
-
-            [db.sequelize.literal(
-                `SUM(CASE WHEN "seller"."state" = 'Finalizado' THEN COALESCE("seller"."count_perfume", 0) ELSE 0 END)`
-            ), 'count_perfum'],
-            [db.sequelize.literal(
-                `COUNT(CASE WHEN "seller"."state" = 'Finalizado' THEN COALESCE("seller"."id", 0) ELSE 0 END)`
-            ), 'count_delivery'],
-            [db.sequelize.literal(
-                `SUM(CASE WHEN "seller"."state" = 'Finalizado' THEN COALESCE("seller"."delivery_pay", 0) ELSE 0 END)`
-            ), 'money_delivery'],
-            [db.sequelize.literal(
-                `SUM(CASE WHEN "seller"."state" = 'Finalizado' THEN COALESCE("seller"."amount", 0) ELSE 0 END)`
-            ), 'cash_perfume'],
-            // [db.sequelize.literal(
-            //     `SUM(CASE WHEN "seller"."state" = 'Finalizado' THEN COALESCE(SUM(seller.amount),0) - COALESCE(SUM(seller.delivery_pay),0) ELSE 0 END)`
-            // ), 'cash_net']
-            [
-                db.sequelize.literal(`
-                    SUM(
-                    CASE 
-                        WHEN "seller"."state" = 'Finalizado'
-                        THEN COALESCE("seller"."amount", 0)
-                        - COALESCE("seller"."delivery_pay", 0)
-                        ELSE 0
-                    END
-                    )
-                `),
-                'cash_net'
-                ]
-
-        ],
-        group: ['user.id']
+        group: ['user.id'],
+        subQuery: false, 
+        raw: true
     });
+
+    // const sellers = await db.models.user.findAll({
+    //     where: { rol: 'Vendedor' },
+    //     include: [{
+    //         model: db.models.sale,
+    //         as: 'seller',
+    //         attributes: [],
+    //         where,
+    //         required: false
+    //     }],
+    //     attributes: [
+    //         'id','name', 'email', 'rol','status',
+    //         // [db.sequelize.fn('COUNT', db.sequelize.col('seller.id')), 'count_delivery'],
+    //         // [db.sequelize.fn('SUM', db.sequelize.col('seller.count_perfume')), 'count_perfum'],
+    //         // [db.sequelize.fn('SUM', db.sequelize.col('seller.delivery_pay')), 'money_delivery'],
+    //         // [db.sequelize.fn('SUM', db.sequelize.col('seller.amount')), 'cash_perfume'],
+
+    //         // [
+    //         // db.sequelize.literal(``),
+    //         // 'cash_net'
+    //         // ],
+
+    //         [db.sequelize.literal(
+    //             `SUM(CASE WHEN "seller"."state" = 'Finalizado' THEN COALESCE("seller"."count_perfume", 0) ELSE 0 END)`
+    //         ), 'count_perfum'],
+    //         [db.sequelize.literal(
+    //             `COUNT(CASE WHEN "seller"."state" = 'Finalizado' THEN COALESCE("seller"."id", 0) ELSE 0 END)`
+    //         ), 'count_delivery'],
+    //         [db.sequelize.literal(
+    //             `SUM(CASE WHEN "seller"."state" = 'Finalizado' THEN COALESCE("seller"."delivery_pay", 0) ELSE 0 END)`
+    //         ), 'money_delivery'],
+    //         [db.sequelize.literal(
+    //             `SUM(CASE WHEN "seller"."state" = 'Finalizado' THEN COALESCE("seller"."amount", 0) ELSE 0 END)`
+    //         ), 'cash_perfume'],
+    //         // [db.sequelize.literal(
+    //         //     `SUM(CASE WHEN "seller"."state" = 'Finalizado' THEN COALESCE(SUM(seller.amount),0) - COALESCE(SUM(seller.delivery_pay),0) ELSE 0 END)`
+    //         // ), 'cash_net']
+    //         // [
+    //         //     db.sequelize.literal(`
+    //         //         SUM(
+    //         //         CASE 
+    //         //             WHEN "seller"."state" = 'Finalizado'
+    //         //             THEN COALESCE("seller"."amount", 0)
+    //         //             - COALESCE("seller"."delivery_pay", 0)
+    //         //             ELSE 0
+    //         //         END
+    //         //         )
+    //         //     `),
+    //         //     'cash_net'
+    //         //     ]
+    //         // [
+    //         // db.sequelize.literal(`
+    //         //     SUM(
+    //         //     CASE 
+    //         //         WHEN "seller"."state" = 'Finalizado' 
+    //         //         THEN 
+    //         //         COALESCE("seller"."amount", 0) 
+    //         //         - COALESCE("seller"."delivery_pay", 0) 
+    //         //         - (COALESCE("details"."count", 0) * COALESCE("details->product"."sale_price", 0))
+    //         //         ELSE 0 
+    //         //     END
+    //         //     )
+    //         // `),
+    //         // 'cash_net'
+    //         // ],
+    //         // [
+    //         // db.sequelize.fn(
+    //         //     'SUM',
+    //         //     db.sequelize.literal(`"details"."count" * "details->product"."sale_price"`)
+    //         // ),
+    //         // 'perfume_income'
+    //         // ]
+
+    //     ],
+    //     group: ['user.id']
+    // });
 
     const employees = await db.models.user.findAll({
         where: { rol: 'Empleado' },
