@@ -137,6 +137,11 @@ export const getSales = async (req, res) => {
     try{
         const { from, to  } = req.query
         const where = {}
+        const { id, rol } = req.user;
+
+        if (rol !== 'Admin') {
+            where.employee_id = id; 
+        }
 
         if(from && to){
           where.createdAt = {
@@ -169,7 +174,7 @@ export const getSales = async (req, res) => {
                 e.employee_id = e.employee?.name || ''
                 e.seller_id = e.seller?.name || ''
                 e.messenger_id = e.messenger?.name || ''
-                
+              
 
                 return e;
             })
