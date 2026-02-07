@@ -15,7 +15,13 @@ import { authenticationMiddleware, sentryMiddleware } from '@/middleware';
 const { NODE_ENV } = process.env;
 
 const app = express();
-app.use('/uploads', express.static(path.resolve('uploads')))
+// Sustituye tu línea actual por esta en app.js
+app.use('/uploads', express.static(path.join(process.cwd(), 'uploads')));
+// app.use('/uploads', express.static(path.resolve('uploads')))
+// const __dirname = path.dirname(fileURLToPath(import.meta.url));
+
+// // Esta línea es la que falta:
+// app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
 
 
 // Initialize sentry
