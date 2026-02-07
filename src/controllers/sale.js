@@ -60,7 +60,7 @@ export const addSale = async (req, res) => {
         sale_id: sale.id,
         store_id: item.product_id,
         count: item.quantity,
-        price: 475
+        price: store.sale_price ?? 0
       }, { transaction })
 
       // 4️⃣ Descontar stock
