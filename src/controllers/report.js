@@ -9,14 +9,16 @@ export const report_cash_reconciliation = async (req, res) => {
         const cash = await db.models.sale.sum('amount',{
              where: { 
                 createdAt: { [Op.between]: [from, to] },
-                type_pay: 1 //efectivo
+                type_pay: 1, //efectivo,
+                // state: { [Op.not]: 'Cancelado' }
             }
         });
 
         const trans = await db.models.sale.sum('amount',{
              where: { 
                 createdAt: { [Op.between]: [from, to] },
-                type_pay: 2 //transferencia
+                type_pay: 2, //transferencia
+                //  state: { [Op.not]: 'Cancelado' }
             }
         });
 
@@ -98,7 +100,7 @@ export const report_cash_reconciliation = async (req, res) => {
                 [db.sequelize.fn('SUM', db.sequelize.col('delivery_pay')), 'total']
             ],
             where: {
-                createdAt: { [Op.between]: [from, to] }
+                createdAt: { [Op.between]: [from, to] },
             },
             include: [{
                 model: db.models.user,
@@ -119,12 +121,29 @@ export const report_cash_reconciliation = async (req, res) => {
                 'employee_id',
 
                 [db.sequelize.fn('SUM', db.sequelize.col('amount')), 'total'],
+                [db.sequelize.literal(`
+                    SUM(
+                        CASE 
+                            WHEN type_pay = 1 THEN amount 
+                            ELSE 0 
+                        END
+                    )
+                `), 'cash_total'],
+                [db.sequelize.literal(`
+                    SUM(
+                        CASE 
+                            WHEN type_pay = 2 THEN amount 
+                            ELSE 0 
+                        END
+                    )
+                `), 'transfer_total'],
                 [db.sequelize.fn('COUNT', db.sequelize.col('sale.id')), 'orders_count'],
                 [db.sequelize.fn('SUM', db.sequelize.col('count_perfume')), 'perfumes_sold'],
                 [db.sequelize.fn('SUM', db.sequelize.col('delivery_pay')), 'messenger_cost']
             ],
             where: {
-                createdAt: { [Op.between]: [from, to] }
+                createdAt: { [Op.between]: [from, to] },
+                //  state: "Finalizado"
             },
             include: [{
                 model: db.models.user,
