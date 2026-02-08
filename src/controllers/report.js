@@ -27,23 +27,69 @@ export const report_cash_reconciliation = async (req, res) => {
         });
 
         const sellerTotals = await db.models.sale.findAll({
-            attributes: [
-                'seller_id',
-                [db.sequelize.fn('SUM', db.sequelize.col('amount')), 'total'],
-                [db.sequelize.fn('COUNT', db.sequelize.col('sale.id')), 'orders_count'],
-                [db.sequelize.fn('SUM', db.sequelize.col('count_perfume')), 'perfumes_sold'],
-                [db.sequelize.fn('SUM', db.sequelize.col('delivery_pay')), 'messenger_cost']
+          attributes: [
+            'seller_id',
+            [
+              db.sequelize.literal('SUM(DISTINCT "sale"."amount")'), 
+              'total'
             ],
-            where: {
-                createdAt: { [Op.between]: [from, to] },
-                seller_id: { [Op.not]: null }
+
+            [
+              db.sequelize.literal('SUM(DISTINCT "sale"."count_perfume")'), 
+              'perfumes_sold'
+            ],
+
+            [
+              db.sequelize.fn('COUNT', db.sequelize.fn('DISTINCT', db.sequelize.col('sale.id'))), 
+              'orders_count'
+            ], //
+
+            [
+              db.sequelize.literal(`
+                COUNT(DISTINCT CASE WHEN "sale"."messenger_id" IS NOT NULL THEN "sale"."id" ELSE NULL END)
+              `),
+              'deliveries'
+            ],
+
+            [
+              db.sequelize.literal(`
+                SUM(DISTINCT "sale"."delivery_pay") FILTER (WHERE "sale"."messenger_id" IS NOT NULL)
+              `),
+              'messenger_cost'
+            ],
+
+            [
+              db.sequelize.fn(
+                'SUM',
+                db.sequelize.literal(`"details"."count" * "details->product"."sale_price"`)
+              ),
+              'perfume_cost'
+            ]
+          ],
+          where: {
+            createdAt: { [Op.between]: [from, to] },
+            seller_id: { [Op.not]: null },
+            state: "Finalizado"
+          },
+          include: [
+            {
+              model: db.models.user,
+              as: 'seller',
+              attributes: ['name'] 
             },
-            include: [{
-                model: db.models.user,
-                as: 'seller',
-                attributes: ['id', 'name', 'rol']
-            }],
-            group: ['seller_id', 'seller.id']
+            {
+              model: db.models.saleDetail,
+              as: 'details',
+              attributes: [],
+              include: [{
+                model: db.models.stores,
+                as: 'product',
+                attributes: []
+              }]
+            }
+          ],
+          group: ['seller_id', 'seller.id', 'seller.name'],
+          raw: true
         });
 
         const messengerTotals = await db.models.sale.findAll({
