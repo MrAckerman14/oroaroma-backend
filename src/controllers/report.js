@@ -10,7 +10,7 @@ export const report_cash_reconciliation = async (req, res) => {
              where: { 
                 createdAt: { [Op.between]: [from, to] },
                 type_pay: 1, //efectivo,
-                // state: { [Op.not]: 'Cancelado' }
+                state: "Finalizado"
             }
         });
 
@@ -18,13 +18,14 @@ export const report_cash_reconciliation = async (req, res) => {
              where: { 
                 createdAt: { [Op.between]: [from, to] },
                 type_pay: 2, //transferencia
-                //  state: { [Op.not]: 'Cancelado' }
+                state: "Finalizado"
             }
         });
 
         const cash_messengers = await db.models.sale.sum('delivery_pay',{
              where: { 
-                createdAt: { [Op.between]: [from, to] }
+                createdAt: { [Op.between]: [from, to] },
+                state: "Finalizado"
             }
         });
 
@@ -101,6 +102,7 @@ export const report_cash_reconciliation = async (req, res) => {
             ],
             where: {
                 createdAt: { [Op.between]: [from, to] },
+                state: "Finalizado"
             },
             include: [{
                 model: db.models.user,
@@ -112,7 +114,8 @@ export const report_cash_reconciliation = async (req, res) => {
 
             const totalGeneral = await db.models.sale.sum('amount', {
             where: {
-                createdAt: { [Op.between]: [from, to] }
+                createdAt: { [Op.between]: [from, to] },
+                state: "Finalizado"
             }
             });
 
@@ -143,7 +146,7 @@ export const report_cash_reconciliation = async (req, res) => {
             ],
             where: {
                 createdAt: { [Op.between]: [from, to] },
-                //  state: "Finalizado"
+                 state: "Finalizado"
             },
             include: [{
                 model: db.models.user,
