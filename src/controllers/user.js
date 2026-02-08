@@ -68,41 +68,32 @@ const days = dayjs().diff(Dfrom, "day") + 1;
         attributes: [
             'id', 'name', 'email', 'rol', 'status',
             
-            [db.sequelize.literal(
-                `COUNT(DISTINCT CASE WHEN "seller"."state" = 'Finalizado' THEN "seller"."id" END)`
-            ), 'count_delivery'],
+            [db.sequelize.fn('SUM', db.sequelize.col('amount')), 'total'],
 
             [db.sequelize.literal(
-                `SUM(DISTINCT CASE WHEN "seller"."state" = 'Finalizado' THEN COALESCE("seller"."count_perfume", 0) ELSE 0 END)`
+                `SUM(CASE WHEN "seller"."state" = 'Finalizado' THEN COALESCE("seller"."count_perfume", 0) ELSE 0 END)`
             ), 'count_perfum'],
 
             [db.sequelize.literal(
-                `SUM(DISTINCT CASE WHEN "seller"."state" = 'Finalizado' THEN COALESCE("seller"."delivery_pay", 0) ELSE 0 END)`
+                `SUM(CASE WHEN "seller"."state" = 'Finalizado' THEN COALESCE("seller"."delivery_pay", 0) ELSE 0 END)`
             ), 'money_delivery'],
 
             [db.sequelize.literal(
-                `SUM(DISTINCT CASE WHEN "seller"."state" = 'Finalizado' THEN COALESCE("seller"."amount", 0) ELSE 0 END)`
+                `SUM(CASE WHEN "seller"."state" = 'Finalizado' THEN COALESCE("seller"."amount", 0) ELSE 0 END)`
             ), 'cash_perfume'],
 
             [db.sequelize.literal(
                 `SUM(CASE WHEN "seller"."state" = 'Finalizado' THEN COALESCE("seller->details"."count", 0) * COALESCE("seller->details->product"."sale_price", 0) ELSE 0 END)`
             ), 'perfume_money_pay'],
-
-            // [db.sequelize.literal(
-            //     `SUM(DISTINCT CASE WHEN "seller"."state" = 'Finalizado' THEN COALESCE("seller"."amount", 0) - COALESCE("seller"."delivery_pay", 0) ELSE 0 END)`
-            // ), 'cash_net']
-        //     [db.sequelize.literal(`
-        //     SUM(DISTINCT CASE WHEN "seller"."state" = 'Finalizado' THEN COALESCE("seller"."amount", 0) -
-        //     COALESCE("seller"."delivery_pay", 0) ELSE 0 END)
-        //     - 
-        //     SUM(CASE WHEN "seller"."state" = 'Finalizado' THEN COALESCE("seller->details"."count", 0) * COALESCE("seller->details->product"."purchase_price", 0) ELSE 0 END)
-        // `), 'cash_net']
         ],
         include: [{
             model: db.models.sale,
             as: 'seller',
             attributes: [],
-            where, 
+            where: {
+                ...where,
+                state: 'Finalizado'
+            }, 
             required: false,
             include: [{
                 model: db.models.saleDetail,

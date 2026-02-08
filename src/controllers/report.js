@@ -32,13 +32,10 @@ export const report_cash_reconciliation = async (req, res) => {
         const sellerTotals = await db.models.sale.findAll({
           attributes: [
             'seller_id',
-            [
-              db.sequelize.literal('SUM(DISTINCT "sale"."amount")'), 
-              'total'
-            ],
+            [db.sequelize.fn('SUM', db.sequelize.col('amount')), 'total'],
 
             [
-              db.sequelize.literal('SUM(DISTINCT "sale"."count_perfume")'), 
+              db.sequelize.literal('SUM("sale"."count_perfume")'), 
               'perfumes_sold'
             ],
 
@@ -49,14 +46,14 @@ export const report_cash_reconciliation = async (req, res) => {
 
             [
               db.sequelize.literal(`
-                COUNT(DISTINCT CASE WHEN "sale"."messenger_id" IS NOT NULL THEN "sale"."id" ELSE NULL END)
+                COUNT(CASE WHEN "sale"."messenger_id" IS NOT NULL THEN "sale"."id" ELSE NULL END)
               `),
               'deliveries'
             ],
 
             [
               db.sequelize.literal(`
-                SUM(DISTINCT "sale"."delivery_pay") FILTER (WHERE "sale"."messenger_id" IS NOT NULL)
+                SUM("sale"."delivery_pay") FILTER (WHERE "sale"."messenger_id" IS NOT NULL)
               `),
               'messenger_cost'
             ],
@@ -288,12 +285,12 @@ export const getClosureDetails = async (req, res) => {
     attributes: [
       'seller_id',
       [
-        db.sequelize.literal('SUM(DISTINCT "sale"."amount")'), 
+        db.sequelize.literal('SUM("sale"."amount")'), 
         'sold'
       ],
 
       [
-        db.sequelize.literal('SUM(DISTINCT "sale"."count_perfume")'), 
+        db.sequelize.literal('SUM("sale"."count_perfume")'), 
         'perfumes'
       ],
 
@@ -304,14 +301,14 @@ export const getClosureDetails = async (req, res) => {
 
       [
         db.sequelize.literal(`
-          COUNT(DISTINCT CASE WHEN "sale"."messenger_id" IS NOT NULL THEN "sale"."id" ELSE NULL END)
+          COUNT(CASE WHEN "sale"."messenger_id" IS NOT NULL THEN "sale"."id" ELSE NULL END)
         `),
         'deliveries'
       ],
 
       [
         db.sequelize.literal(`
-          SUM(DISTINCT "sale"."delivery_pay") FILTER (WHERE "sale"."messenger_id" IS NOT NULL)
+          SUM("sale"."delivery_pay") FILTER (WHERE "sale"."messenger_id" IS NOT NULL)
         `),
         'delivery_cost'
       ],
