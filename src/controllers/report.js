@@ -137,9 +137,10 @@ export const report_cash_reconciliation = async (req, res) => {
                         END
                     )
                 `), 'transfer_total'],
+                [db.sequelize.fn('SUM', db.sequelize.col('delivery_pay')), 'messenger_cost'],
                 [db.sequelize.fn('COUNT', db.sequelize.col('sale.id')), 'orders_count'],
-                [db.sequelize.fn('SUM', db.sequelize.col('count_perfume')), 'perfumes_sold'],
-                [db.sequelize.fn('SUM', db.sequelize.col('delivery_pay')), 'messenger_cost']
+                [db.sequelize.fn('SUM', db.sequelize.col('count_perfume')), 'perfumes_sold']
+                
             ],
             where: {
                 createdAt: { [Op.between]: [from, to] },
@@ -362,7 +363,23 @@ export const getClosureDetails = async (req, res) => {
       attributes: [
         'employee_id',
         [db.sequelize.fn('SUM', db.sequelize.col('amount')), 'sold'],
-        [db.sequelize.fn('COUNT', db.sequelize.col('sale.id')), 'orders']
+        [db.sequelize.fn('COUNT', db.sequelize.col('sale.id')), 'orders'],
+         [db.sequelize.literal(`
+          SUM(
+              CASE 
+                  WHEN type_pay = 1 THEN amount 
+                  ELSE 0 
+              END
+          )`), 'cash'],
+        [db.sequelize.literal(`
+            SUM(
+                CASE 
+                    WHEN type_pay = 2 THEN amount 
+                    ELSE 0 
+                END
+            )
+        `), 'transfer_total'],
+         [db.sequelize.fn('SUM', db.sequelize.col('delivery_pay')), 'money_delivery'],
       ],
       where: {
         ...where,
