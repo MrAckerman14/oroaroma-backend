@@ -95,7 +95,39 @@ export const report_cash_reconciliation = async (req, res) => {
         const messengerTotals = await db.models.sale.findAll({
             attributes: [
                 'messenger_id',
-                [db.sequelize.fn('SUM', db.sequelize.col('delivery_pay')), 'total']
+                // [db.sequelize.fn('SUM', db.sequelize.col('delivery_pay')), 'total'],
+                 [db.sequelize.literal(`
+                    COUNT(
+                        CASE 
+                            WHEN "state" IN ('Finalizado', 'Cancelado') 
+                            THEN "sale"."id" 
+                            ELSE NULL 
+                        END
+                    )
+                `), 'count_delivery'],
+                [
+                db.sequelize.literal(`
+                    SUM(
+                    CASE 
+                        WHEN "state" = 'Entrega pendiente'
+                        AND "type_pay" = 1
+                        THEN COALESCE("amount", 0)
+                        ELSE 0
+                    END
+                    )
+                `),
+                'money_pending'
+                ],
+                
+                [db.sequelize.literal(`
+                    SUM(
+                        CASE 
+                            WHEN "state" IN ('Finalizado', 'Cancelado') 
+                            THEN COALESCE("delivery_pay", 0)
+                            ELSE 0
+                        END
+                    )
+                `), 'earned']
             ],
             where: {
                 createdAt: { [Op.between]: [from, to] },
