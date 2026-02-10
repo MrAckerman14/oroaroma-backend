@@ -53,7 +53,7 @@ const days = dayjs().diff(Dfrom, "day") + 1;
             [db.sequelize.literal(`
                 SUM(
                     CASE 
-                        WHEN "messenger"."state" IN ('Finalizado', 'Cancelado') 
+                        WHEN "messenger"."state" = 'Entrega pendiente'
                         THEN COALESCE("messenger"."delivery_pay", 0)
                         ELSE 0
                     END
