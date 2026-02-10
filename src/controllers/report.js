@@ -122,7 +122,7 @@ export const report_cash_reconciliation = async (req, res) => {
                 [db.sequelize.literal(`
                     SUM(
                         CASE 
-                            WHEN "state" IN ('Finalizado', 'Cancelado') 
+                            WHEN "state" = 'Entrega pendiente' 
                             THEN COALESCE("delivery_pay", 0)
                             ELSE 0
                         END
