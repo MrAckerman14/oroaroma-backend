@@ -122,13 +122,83 @@ const days = dayjs().diff(Dfrom, "day") + 1;
                 // seller_id: null,
                 state: 'Finalizado'   
             },
+            required: false,
+            include: [{
+            model: db.models.saleDetail,
+            as: 'details',
+            attributes: [],
             required: false
+        }]
         }],
         attributes: [
             'id','name', 'email', 'rol','status',
             [db.sequelize.fn('COUNT', db.sequelize.col('employee.id')), 'count_delivery'],
-            [db.sequelize.fn('SUM', db.sequelize.col('employee.delivery_pay')), 'money_delivery'],
-            [db.sequelize.fn('SUM', db.sequelize.col('employee.amount')), 'cash_net'],
+            // [db.sequelize.fn('SUM', db.sequelize.col('employee.delivery_pay')), 'money_delivery'],
+            [db.sequelize.literal(`(
+            SELECT COALESCE(SUM(s.delivery_pay), 0)
+            FROM sales AS s
+            WHERE s.employee_id = "user"."id" 
+              AND s.seller_id IS NULL 
+              AND s.state = 'Finalizado'
+              AND s."createdAt" BETWEEN '${from}' AND '${to}'
+        )`), 'money_delivery'],
+            // [db.sequelize.fn('SUM', db.sequelize.col('employee.amount')), 'cash_net'],
+            // [db.sequelize.literal(`(
+            //     SELECT COALESCE(SUM(s.amount), 0)
+            //     FROM sales AS s
+            //     WHERE s.user_id = user.id 
+            //     AND s.seller_id IS NULL 
+            // )`), 'ventas_propias'],
+            //  [db.sequelize.fn('SUM', db.sequelize.col('employee.amount')), 'cash_net'],
+            // [
+            //     db.sequelize.literal(`
+            //         SUM(DISTINCT 
+            //             CASE 
+            //                 WHEN "employee"."seller_id" IS NULL 
+            //                 THEN "employee"."amount" + ("employee"."id" * 0) -- Truco para forzar valores distintos basados en el ID de venta
+            //                 ELSE 0 
+            //             END
+            //         )
+            //     `), 
+            //     'cash_net'
+            // ]
+            //  [db.sequelize.literal(`
+            //                     SUM(DISTINCT
+            //                         CASE 
+            //                             WHEN employee.seller_id IS NULL 
+            //                             THEN employee.amount 
+            //                             ELSE 0 
+            //                         END
+            //                     )
+            //                 `), 'cash_net'],
+            [db.sequelize.literal(`(
+            SELECT COALESCE(SUM(s.amount), 0)
+            FROM sales AS s
+            WHERE s.employee_id = "user"."id" 
+              AND s.seller_id IS NULL 
+              AND s.state = 'Finalizado'
+              AND s."createdAt" BETWEEN '${from}' AND '${to}'
+        )`), 'sale_total'],
+
+            [db.sequelize.literal(`
+            SUM(
+                CASE 
+                    WHEN "employee"."seller_id" IS NOT NULL 
+                    THEN COALESCE("employee->details"."count", 0) * COALESCE("employee->details"."price", 0) 
+                    ELSE 0 
+                END
+            )
+        `), 'perfume_money_pay'],
+
+            // [db.sequelize.literal(`(
+            //     SELECT COALESCE(SUM(sd.count * sd.sale_price), 0)
+            //     FROM sale_details AS sd
+            //     INNER JOIN sales AS s ON s.id = sd.sale_id
+            //     WHERE s.user_id = user.id 
+            //     AND s.seller_id IS NOT NULL 
+            //     AND s.state = 'Finalizado'
+            // )`), 'solo_precio_perfumes'],
+        
              [db.sequelize.fn('SUM', db.sequelize.col('employee.count_perfume')), 'count_perfum'],
 
             [
@@ -139,18 +209,31 @@ const days = dayjs().diff(Dfrom, "day") + 1;
             [db.sequelize.literal(`
                                 SUM(
                                     CASE 
-                                        WHEN employee.type_pay = 1 THEN employee.amount 
+                                        WHEN employee.type_pay = 1
+                                        AND (employee.seller_id IS NULL) 
+                                        THEN employee.amount 
                                         ELSE 0 
                                     END
                                 )
                             `), 'cash_total'],
+                            // [db.sequelize.literal(`
+                            //     SUM(
+                            //         CASE 
+                            //             WHEN employee.type_pay = 2 THEN employee.amount 
+                            //             AND employee.seller_id IS NULL
+                            //             ELSE 0 
+                            //         END
+                            //     )
+                            // `), 'transfer_total'],
                             [db.sequelize.literal(`
                                 SUM(
                                     CASE 
-                                        WHEN employee.type_pay = 2 THEN employee.amount 
-                                        ELSE 0 
+                                        WHEN (employee.type_pay = 2)
+                                        AND (employee.seller_id IS NULL)
+                                        THEN employee.amount
+                                        ELSE 0
                                     END
-                                )
+                                ) 
                             `), 'transfer_total'],
                             // [db.sequelize.fn('SUM', db.sequelize.col('employee.delivery_pay')), 'messenger_cost'],
         ],
