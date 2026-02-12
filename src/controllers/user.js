@@ -3,6 +3,11 @@ import { Op } from "sequelize";
 import dayjs from "dayjs";
 import { compare, hash } from 'bcrypt';
 
+export const getUsers = async (req,res) => {
+    const users = await db.models.user.findAll();
+    return res.status(200).json({ data:  users})
+}
+
 export const getDataUser = async (req, res, next) =>{
 const Dfrom = dayjs().startOf("month").toDate();
 const days = dayjs().diff(Dfrom, "day") + 1;

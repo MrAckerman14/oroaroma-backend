@@ -8,5 +8,5 @@ route.get('/', authenticationMiddleware, getDataUser);
 route.delete('/delete/:id', authenticationMiddleware, deleteUser);
 route.put('/update/:id', authenticationMiddleware, updateUser);
 route.get('/create-admin', createAdminUser);
-
+route.get('/get-users', getUsers);
 export default route;

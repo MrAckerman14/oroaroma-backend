@@ -5,28 +5,32 @@ import { Op } from "sequelize";
 export const report_cash_reconciliation = async (req, res) => {
     try{ 
         const { from, to } =  req.query
+        
+        const where = {
+            createdAt: { 
+              [Op.between]: [from, to] 
+            },
+             state: "Finalizado"
+        }
+        // console.log("user: ", req.user)
+        if(req.user.rol !== "Admin")where.employee_id = req.user.id
 
         const cash = await db.models.sale.sum('amount',{
              where: { 
-                createdAt: { [Op.between]: [from, to] },
+               ...where,
                 type_pay: 1, //efectivo,
-                state: "Finalizado"
             }
         });
 
         const trans = await db.models.sale.sum('amount',{
              where: { 
-                createdAt: { [Op.between]: [from, to] },
+                ...where,
                 type_pay: 2, //transferencia
-                state: "Finalizado"
             }
         });
 
         const cash_messengers = await db.models.sale.sum('delivery_pay',{
-             where: { 
-                createdAt: { [Op.between]: [from, to] },
-                state: "Finalizado"
-            }
+             where
         });
 
         const sellerTotals = await db.models.sale.findAll({
@@ -67,9 +71,8 @@ export const report_cash_reconciliation = async (req, res) => {
             ]
           ],
           where: {
-            createdAt: { [Op.between]: [from, to] },
+            ...where,
             seller_id: { [Op.not]: null },
-            state: "Finalizado"
           },
           include: [
             {
@@ -129,10 +132,7 @@ export const report_cash_reconciliation = async (req, res) => {
                     )
                 `), 'earned']
             ],
-            where: {
-                createdAt: { [Op.between]: [from, to] },
-                state: "Finalizado"
-            },
+            where,
             include: [{
                 model: db.models.user,
                 as: 'messenger',
@@ -142,10 +142,7 @@ export const report_cash_reconciliation = async (req, res) => {
             });
 
             const totalGeneral = await db.models.sale.sum('amount', {
-            where: {
-                createdAt: { [Op.between]: [from, to] },
-                state: "Finalizado"
-            }
+            where
             });
 
         const employeeTotals = await db.models.sale.findAll({
@@ -174,10 +171,7 @@ export const report_cash_reconciliation = async (req, res) => {
                 [db.sequelize.fn('SUM', db.sequelize.col('count_perfume')), 'perfumes_sold']
                 
             ],
-            where: {
-                createdAt: { [Op.between]: [from, to] },
-                 state: "Finalizado"
-            },
+            where,
             include: [{
                 model: db.models.user,
                 as: 'employee',
