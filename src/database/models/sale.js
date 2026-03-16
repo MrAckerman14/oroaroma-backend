@@ -23,6 +23,10 @@ export default function (sequelize) {
          as: 'details',
          foreignKey: 'sale_id',
     });
+    Sale.hasMany(models.cash_closure_detail, {
+      as: 'closureDetails',
+      foreignKey: 'saleId'
+    });
     }
   }
 
@@ -34,7 +38,7 @@ export default function (sequelize) {
       },
       type_pay: {
         type: DataTypes.INTEGER,
-        allowNull: false,
+        allowNull: true,
       },
       count_perfume: {
         type: DataTypes.INTEGER,
@@ -54,7 +58,7 @@ export default function (sequelize) {
       },
       messenger_id: {
         type: DataTypes.INTEGER,
-        allowNull: false,
+        allowNull: true,
       },
        state: {
         type: DataTypes.STRING,
@@ -64,10 +68,26 @@ export default function (sequelize) {
         type: DataTypes.INTEGER,
         allowNull: true,
       },
+       phone: {
+        type: DataTypes.STRING,
+        allowNull: true,
+      },
+       amount_cash: {
+        type: DataTypes.INTEGER,
+        allowNull: true,
+      },
+       amount_transfer: {
+        type: DataTypes.INTEGER,
+        allowNull: true,
+      },
       deletedAt: {
         type: DataTypes.DATE,
         allowNull: true,
-      }
+      },
+      closedIn: {
+      type: DataTypes.INTEGER,
+      allowNull: true
+    },
     },
     {
       sequelize,

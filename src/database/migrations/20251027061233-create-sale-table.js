@@ -29,7 +29,7 @@ module.exports = {
       },
       messenger_id: {
         type: Sequelize.INTEGER,
-        allowNull: false,
+        allowNull: true,
         references: {
           model: 'users',
           key: 'id',
@@ -53,7 +53,7 @@ module.exports = {
       },
       type_pay: {
         type: Sequelize.INTEGER,
-        allowNull: false
+        allowNull: true
       },
       count_perfume: {
         type: Sequelize.INTEGER,

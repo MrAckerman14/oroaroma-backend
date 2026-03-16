@@ -9,37 +9,39 @@ export const addSale = async (req, res) => {
       messenger_id,
       seller_id,
       amount,
-      type_pay,
       description,
       delivery_pay,
       detail,
-      count_perfume 
+      count_perfume,
+      phone, 
+      amount_cash,
+      amount_transfer
     } = req.body
 
-    // if (req?.user?.rol === 'Admin') {
-    //   await transaction.rollback()
-    //   return res.status(403).json({ data: 'No puedes crear ventas' })
-    // }
 
     if (!detail || !detail.length) {
       await transaction.rollback()
       return res.status(400).json({ data: 'La venta no tiene perfumes' })
     }
 
-    // 1️⃣ Crear venta
+    if(Number(amount) < (Number(amount_cash) + Number(amount_transfer) )) return res.status(400).json({ data: "El total ingresado en efectivo y transferencia supera el monto total de la venta."})
+
+    // Crear venta
     const sale = await db.models.sale.create({
       employee_id: req.user.id,
-      messenger_id: messenger_id.value,
+      messenger_id: messenger_id?.value || null,
       seller_id: seller_id?.value || null,
       amount,
-      type_pay: type_pay.value,
+      amount_cash,
+      amount_transfer,
+      phone: phone,
       description,
       delivery_pay,
       state: 'Entrega pendiente',
       count_perfume: count_perfume 
     }, { transaction })
 
-    // 2️⃣ Procesar detalles
+
     for (const item of detail) {
       const store = await db.models.stores.findOne({
         where: { id: item.product_id },
@@ -55,7 +57,6 @@ export const addSale = async (req, res) => {
         throw new Error(`Stock insuficiente para ${store.name}`)
       }
 
-      // 3️⃣ Crear detalle
       await db.models.saleDetail.create({
         sale_id: sale.id,
         store_id: item.product_id,
@@ -63,18 +64,13 @@ export const addSale = async (req, res) => {
         price: store.sale_price ?? 0
       }, { transaction })
 
-      // 4️⃣ Descontar stock
+    
       await store.decrement('stock', {
         by: item.quantity,
         transaction
       })
     }
 
-    // 5️⃣ Actualizar mensajero
-    await db.models.user.update(
-      { status: 'Entrega pendiente' },
-      { where: { id: messenger_id.value }, transaction }
-    )
 
     await transaction.commit()
     return res.status(201).json({ data: 'Venta agregada correctamente' })
@@ -87,51 +83,6 @@ export const addSale = async (req, res) => {
     })
   }
 }
-
-
-// export const addSale = async (req, res) => {
-//     try{
-//         const { state, messenger_id,seller_id, amount, type_pay,count_perfume, description, delivery_pay, details } = req.body;
-//         // // if(body.)
-//         // const product = await db.models.sale.create(body)
-//         //     if(!product)res.status(403).json({ data: "error al agregar!" })
-//         //     res.status(201).json({ data: "Creado!" })
-//         if(req?.user?.rol == "Admin")return res.status(402).json({ data: "No puedes crear ventas!"})
-        
-//         await db.models.sale.create({
-//             employee_id: req?.user?.id || 1,
-//             messenger_id: messenger_id.value,
-//             seller_id: seller_id?.value || null,
-//             amount: amount,
-//             type_pay: type_pay.value,
-//             count_perfume: count_perfume,
-//             description: description,
-//             delivery_pay: delivery_pay,
-//             state: "Entrega pendiente"
-//         }).catch(err => {
-//             return res.status(403).json({ data: "error al agregar la venta, "+ err})
-//         })
-
-//         await db.models.user.update(
-//             {
-//             status: "Entrega pendiente" 
-//         }, { 
-//             where: { id: messenger_id.value }
-//         })
-
-//         // details.sale_id = sale?.id
-
-//         // for (const detail of details) {
-//         //     detail.sale_id = sale?.id
-//         //     await db.models.saleDetail.create(detail).catch(err =>{ return  console.error("error al agregar detalle de venta "+err)});
-//         //     await db.models.stores.decrement('stock', { by: detail.count, where: { id: detail.store_id } }).catch(err => { return console.error("Error al descontar del almacen")});
-//         // }
-
-//         res.status(201).json({ data: "Venta agregada!"});
-//     }catch(err){
-//         res.status(403).json({ data: "Error al agregar pedido, "+err })
-//     }
-// }
 
 export const getSales = async (req, res) => {
     try{
@@ -189,13 +140,10 @@ export const getSales = async (req, res) => {
 
 export const updateSale = async (req, res, next) =>{
     try{
-        // console.log(req)
+        console.log(req.body)
         db.models.sale.update(req.body, { where: { id: req.params.id }})
         .then(response => {
-            // db.models.user.update({ status: req.body.state }, { where: { id: req.body.userId }})
-            // .then(resp => {
-            //     console.log("Actualizado")
-            // })
+
             res.status(200).json({ data: "Actualizado" })
         })
         .catch(err =>  {
@@ -233,11 +181,11 @@ export const createClosure = async (req, res) => {
     const { sale: Sale, cash_closure: CashClosure, cash_closure_detail: CashClosureDetail } = db.models;
 
     const closure = await db.sequelize.transaction(async (t) => {
-      // 1) Traer ventas no cerradas del rango
+    
       const sales = await db.models.sale.findAll({
         where: {
-          createdAt: { [Op.between]: [dateFrom, dateTo] },
-          // closedIn: null,
+          createdAt: { [Op.between]: [dateFrom, dateTo] }
+         
         },
         transaction: t,
         lock: t.LOCK.UPDATE,
@@ -250,15 +198,20 @@ export const createClosure = async (req, res) => {
       }
 
       const totals = sales.reduce((acc, s) => {
+        if(s.state !== "Finalizado")return acc;
+
         const amount = Number(s.amount) || 0;
         const countPerfume = Number(s.count_perfume) || 0;
         const deliveryPay = Number(s.delivery_pay) || 0;
+        const amount_cash = Number(s.amount_cash) || 0;
+        const amount_transfer = Number(s.amount_transfer) || 0;
+
         acc.total_sale += amount;
         acc.total_perfumes += countPerfume;
         acc.total_messenger_cost += deliveryPay;
-
-        if (Number(s.type_pay) === 1) acc.total_cash += amount;
-        if (Number(s.type_pay) === 2) acc.total_trans += amount;
+        acc.total_cash += amount_cash;
+        acc.total_trans += amount_transfer;
+        
         return acc;
       }, { total_cash: 0, total_trans: 0, total_sale: 0, total_perfumes: 0, total_messenger_cost: 0 });
 
@@ -284,11 +237,6 @@ export const createClosure = async (req, res) => {
       }));
       await CashClosureDetail.bulkCreate(details, { transaction: t });
 
-      const saleIds = sales.map(s => s.id);
-      await Sale.update(
-        { closedIn: closure.id },
-        { where: { id: saleIds }, transaction: t }
-      );
 
       return closure;
     });

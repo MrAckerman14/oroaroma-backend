@@ -14,8 +14,8 @@ export const verifyToken = (token) => {
     return jwt.verify(token, process.env.JWT_SECRET_KEY)
   } catch (err) {
     if (err.name === 'TokenExpiredError') {
-      throw new Error('TOKEN_EXPIRED')
+      return ('TOKEN_EXPIRED')
     }
-    throw err
+    // throw err
   }
 }

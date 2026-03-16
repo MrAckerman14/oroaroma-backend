@@ -12,26 +12,19 @@ export const report_cash_reconciliation = async (req, res) => {
             },
              state: "Finalizado"
         }
-        // console.log("user: ", req.user)
         if(req.user.rol !== "Admin")where.employee_id = req.user.id
 
-        const cash = await db.models.sale.sum('amount',{
-             where: { 
-               ...where,
-                type_pay: 1, //efectivo,
-            }
-        });
+        const cash = await db.models.sale.sum('amount_cash', {
+            where
+        }) || 0;
 
-        const trans = await db.models.sale.sum('amount',{
-             where: { 
-                ...where,
-                type_pay: 2, //transferencia
-            }
-        });
+        const trans = await db.models.sale.sum('amount_transfer', {
+            where
+        }) || 0;
 
-        const cash_messengers = await db.models.sale.sum('delivery_pay',{
-             where
-        });
+        const cash_messengers = await db.models.sale.sum('delivery_pay', {
+            where
+        }) || 0;
 
         const sellerTotals = await db.models.sale.findAll({
           attributes: [
@@ -98,7 +91,6 @@ export const report_cash_reconciliation = async (req, res) => {
         const messengerTotals = await db.models.sale.findAll({
             attributes: [
                 'messenger_id',
-                // [db.sequelize.fn('SUM', db.sequelize.col('delivery_pay')), 'total'],
                  [db.sequelize.literal(`
                     COUNT(
                         CASE 
@@ -108,19 +100,16 @@ export const report_cash_reconciliation = async (req, res) => {
                         END
                     )
                 `), 'count_delivery'],
-                [
-                db.sequelize.literal(`
+
+                [db.sequelize.literal(`
                     SUM(
-                    CASE 
-                        WHEN "state" = 'Entrega pendiente'
-                        AND "type_pay" = 1
-                        THEN COALESCE("amount", 0)
-                        ELSE 0
-                    END
+                        CASE 
+                            WHEN "state" = 'Entrega pendiente'
+                            THEN COALESCE("amount_cash", 0)
+                            ELSE 0
+                        END
                     )
-                `),
-                'money_pending'
-                ],
+                `), 'money_pending'],
                 
                 [db.sequelize.literal(`
                     SUM(
@@ -132,7 +121,11 @@ export const report_cash_reconciliation = async (req, res) => {
                     )
                 `), 'earned']
             ],
-            where,
+            where: {
+              createdAt: {
+                [Op.between]: [from, to] 
+              }
+            },
             include: [{
                 model: db.models.user,
                 as: 'messenger',
@@ -150,22 +143,18 @@ export const report_cash_reconciliation = async (req, res) => {
                 'employee_id',
 
                 [db.sequelize.fn('SUM', db.sequelize.col('amount')), 'total'],
+                [db.sequelize.fn('SUM', db.sequelize.col('amount_cash')), 'cash_total'],
+                [db.sequelize.fn('SUM', db.sequelize.col('amount_transfer')), 'transfer_total'],
                 [db.sequelize.literal(`
-                    SUM(
-                        CASE 
-                            WHEN type_pay = 1 THEN amount 
-                            ELSE 0 
-                        END
-                    )
-                `), 'cash_total'],
-                [db.sequelize.literal(`
-                    SUM(
-                        CASE 
-                            WHEN type_pay = 2 THEN amount 
-                            ELSE 0 
-                        END
-                    )
-                `), 'transfer_total'],
+                                SUM(
+                                    CASE 
+                                        WHEN "seller_id" IS NULL  
+                                        THEN "amount"
+                                        ELSE 0
+                                    END
+                                )
+                            `), 'sale_total'],
+              
                 [db.sequelize.fn('SUM', db.sequelize.col('delivery_pay')), 'messenger_cost'],
                 [db.sequelize.fn('COUNT', db.sequelize.col('sale.id')), 'orders_count'],
                 [db.sequelize.fn('SUM', db.sequelize.col('count_perfume')), 'perfumes_sold']
@@ -215,7 +204,7 @@ export const reportClosure = async (req, res) => {
      where,
     order: [['id','DESC']]
     })
-
+   
     return res.json({ data: closures })
   } catch (err) {
     console.error(err)
@@ -247,9 +236,11 @@ export const getClosureDetails = async (req, res) => {
     // Totales
     const totals = await db.models.sale.findOne({
       attributes: [
+        [db.sequelize.literal(`
+                SUM(CASE WHEN "seller_id" IS NULL THEN "amount" ELSE 0 END )`), 'sale_total'],
         [db.sequelize.fn('SUM', db.sequelize.col('amount')), 'total_sale'],
-        [db.sequelize.fn('SUM', db.sequelize.literal(`CASE WHEN type_pay = 1 THEN amount ELSE 0 END`)), 'total_cash'],
-        [db.sequelize.fn('SUM', db.sequelize.literal(`CASE WHEN type_pay = 2 THEN amount ELSE 0 END`)), 'total_trans'],
+        [db.sequelize.fn('SUM', db.sequelize.col(`amount_cash`)), 'total_cash'],
+        [db.sequelize.fn('SUM', db.sequelize.col(`amount_transfer`)), 'total_trans'],
         [db.sequelize.fn('SUM', db.sequelize.col('delivery_pay')), 'total_messenger_cost'],
         [db.sequelize.fn('SUM', db.sequelize.col('count_perfume')), 'total_perfumes']
       ],
@@ -284,9 +275,8 @@ export const getClosureDetails = async (req, res) => {
                 db.sequelize.literal(`
                     SUM(
                     CASE 
-                        WHEN "messenger"."state" = 'Entrega pendiente'
-                        AND "messenger"."type_pay" = 1
-                        THEN COALESCE("messenger"."amount", 0)
+                        WHEN "messenger"."state" = 'Entrega pendiente'                       
+                        THEN COALESCE("messenger"."amount_cash", 0)
                         ELSE 0
                     END
                     )
@@ -374,15 +364,6 @@ export const getClosureDetails = async (req, res) => {
     raw: true
   });
 
-//     const sellersWithPending = sellers.map(s => {
-//   const sold = Number(s.sold || 0)
-//   const perfumeCost = Number(s.perfume_cost || 0)
-
-//   return {
-//     ...s,
-//     pending_payment: sold - perfumeCost
-//   }
-// })
 
     // Empleados
     const employees = await db.models.sale.findAll({
@@ -390,22 +371,17 @@ export const getClosureDetails = async (req, res) => {
         'employee_id',
         [db.sequelize.fn('SUM', db.sequelize.col('amount')), 'sold'],
         [db.sequelize.fn('COUNT', db.sequelize.col('sale.id')), 'orders'],
-         [db.sequelize.literal(`
-          SUM(
-              CASE 
-                  WHEN type_pay = 1 THEN amount 
-                  ELSE 0 
-              END
-          )`), 'cash'],
-        [db.sequelize.literal(`
-            SUM(
-                CASE 
-                    WHEN type_pay = 2 THEN amount 
-                    ELSE 0 
-                END
-            )
-        `), 'transfer_total'],
-         [db.sequelize.fn('SUM', db.sequelize.col('delivery_pay')), 'money_delivery'],
+        [db.sequelize.fn('SUM', db.sequelize.col('amount_cash')), 'cash'],
+        [db.sequelize.fn('SUM', db.sequelize.col('amount_transfer')), 'transfer_total'],
+        [db.sequelize.fn('SUM', db.sequelize.col('delivery_pay')), 'money_delivery'],
+        [db.sequelize.literal(`SUM(
+                            CASE 
+                                WHEN "seller_id" IS NULL  
+                                THEN "amount"
+                                ELSE 0
+                            END
+                        )
+                    `), 'sale_total'],
       ],
       where: {
         ...where,

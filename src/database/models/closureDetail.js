@@ -7,8 +7,17 @@ export default (sequelize) => {
   })
 
   CashClosureDetail.associate = (models) => {
-    CashClosureDetail.belongsTo(models.cash_closure, { foreignKey: 'closureId' })
-    CashClosureDetail.belongsTo(models.sale, { foreignKey: 'saleId' })
+    // CashClosureDetail.belongsTo(models.cash_closure, { foreignKey: 'closureId' })
+    // CashClosureDetail.belongsTo(models.sale, { foreignKey: 'saleId' })
+    CashClosureDetail.belongsTo(models.sale, {
+      as: 'sale',
+      foreignKey: 'saleId'
+    });
+
+    CashClosureDetail.belongsTo(models.cash_closure, {
+      as: 'closure',
+      foreignKey: 'closureId'
+    });
   }
 
   return CashClosureDetail
