@@ -1,7 +1,11 @@
-import 'dotenv/config';
+require('dotenv').config();
 
 const {
-  DB_HOST, DB_PORT = 5432, DB_NAME, DB_USER, DB_PASSWORD, DATABASE_URL
+  DB_HOST,
+  DB_PORT = 5432,
+  DB_NAME,
+  DB_USER,
+  DB_PASSWORD
 } = process.env;
 
 const defaultConfig = {
@@ -17,25 +21,25 @@ const defaultConfig = {
   },
 };
 
-export const development = {
-  use_env_variable: 'DATABASE_URL',
-  dialect: 'postgres',
-  define: { paranoid: true },
-  dialectOptions: {
-    ssl: {
-      require: true,       // obliga SSL
-      rejectUnauthorized: false, // necesario en Render
+module.exports = {
+  development: {
+    ...defaultConfig,
+    dialectOptions: {
+      ssl: {
+        require: true,
+        rejectUnauthorized: false,
+      },
     },
+    logging: false,
   },
-   logging: false,
-};
 
-export const test = {
-  ...defaultConfig,
-  logging: false,
-};
+  test: {
+    ...defaultConfig,
+    logging: false,
+  },
 
-export const production = {
-  ...defaultConfig,
-  logging: false,
+  production: {
+    ...defaultConfig,
+    logging: false,
+  },
 };
