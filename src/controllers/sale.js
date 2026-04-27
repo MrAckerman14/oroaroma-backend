@@ -138,22 +138,78 @@ export const getSales = async (req, res) => {
     }
 }
 
-export const updateSale = async (req, res, next) =>{
-    try{
-        console.log(req.body)
-        db.models.sale.update(req.body, { where: { id: req.params.id }})
-        .then(response => {
+export const updateSale = async (req, res, next) => {
+  const transaction = await db.sequelize.transaction()
 
-            res.status(200).json({ data: "Actualizado" })
-        })
-        .catch(err =>  {
-            return  res.status(303).json({ data: "Error al actualizar venta"+ err })
-        })
+  try {
+    const { state } = req.body
+    const saleId = req.params.id
 
-    }catch(err){
-        res.status(403).json({ data: "Error al editar estado "+err})
+    const sale = await db.models.sale.findOne({
+      where: { id: saleId },
+      transaction
+    })
+
+    if (!sale) {
+      await transaction.rollback()
+      return res.status(404).json({ data: 'Venta no encontrada' })
     }
+
+    const stateChanged = state && state !== sale.state
+
+    // Si el estado cambia a Cancelado y venía de Entrega pendiente, restaurar stock
+    if (stateChanged && state === 'Cancelado' && sale.state === 'Entrega pendiente') {
+      const details = await db.models.saleDetail.findAll({
+        where: { sale_id: saleId },
+        transaction
+      })
+
+      for (const detail of details) {
+        const store = await db.models.stores.findOne({
+          where: { id: detail.store_id },
+          lock: transaction.LOCK.UPDATE,
+          transaction
+        })
+
+        if (store) {
+          await store.increment('stock', {
+            by: detail.count,
+            transaction
+          })
+        }
+      }
+    }
+
+    await db.models.sale.update(req.body, {
+      where: { id: saleId },
+      transaction
+    })
+
+    await transaction.commit()
+    return res.status(200).json({ data: 'Venta actualizada correctamente' })
+
+  } catch (err) {
+    await transaction.rollback()
+    console.error(err)
+    return res.status(500).json({ data: 'Error al actualizar venta: ' + err.message })
+  }
 }
+// export const updateSale = async (req, res, next) =>{
+//     try{
+//         console.log(req.body)
+//         db.models.sale.update(req.body, { where: { id: req.params.id }})
+//         .then(response => {
+
+//             res.status(200).json({ data: "Actualizado" })
+//         })
+//         .catch(err =>  {
+//             return  res.status(303).json({ data: "Error al actualizar venta"+ err })
+//         })
+
+//     }catch(err){
+//         res.status(403).json({ data: "Error al editar estado "+err})
+//     }
+// }
 
 export const deleteSale = async (req, res) => {
     try{
