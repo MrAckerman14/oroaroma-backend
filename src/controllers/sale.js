@@ -1,5 +1,7 @@
 import db from '@/database';
 import { Op } from "sequelize";
+import { getDateRange } from '../helpers/dateHelper'
+
 
 export const addSale = async (req, res) => {
   const transaction = await db.sequelize.transaction()
@@ -94,11 +96,20 @@ export const getSales = async (req, res) => {
             where.employee_id = id; 
         }
 
-        if(from && to){
+        // if(from && to){
+        //   where.createdAt = {
+        //     [Op.between]: [from, to]
+        //   }
+        // }
+
+        if (from && to) {
+          const { start, end } = getDateRange(from, to)
           where.createdAt = {
-            [Op.between]: [from, to]
+            [Op.gte]: start,
+            [Op.lt]: end
           }
         }
+
 
         db.models.sale.findAll({
             include: [{
