@@ -1,0 +1,298 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum UserStatus {
+  ACTIVE
+  INACTIVE
+  BLOCKED
+}
+
+enum PermissionScope {
+  GLOBAL
+  STORE
+  OWN
+  ASSIGNED
+}
+
+enum SaleStatus {
+  DELIVERY_PENDING
+  FINALIZED
+  CANCELLED
+}
+
+enum PaymentMethod {
+  CASH
+  TRANSFER
+  MIXED
+}
+
+enum CashClosureStatus {
+  PENDING
+  VERIFIED
+  VOIDED
+}
+
+model User {
+  id           String     @id @default(uuid())
+  name         String
+  email        String     @unique
+  passwordHash String
+  profileImagePath String?
+  phone        String?
+  status       UserStatus @default(ACTIVE)
+  createdAt    DateTime   @default(now())
+  updatedAt    DateTime   @updatedAt
+  deletedAt    DateTime?
+
+  roleAssignments UserRoleAssignment[]
+  refreshSessions RefreshSession[]
+  employeeSales   Sale[] @relation("EmployeeSales")
+  messengerSales  Sale[] @relation("MessengerSales")
+  sellerSales     Sale[] @relation("SellerSales")
+  cashClosures    CashClosure[] @relation("CashClosureCreator")
+  inventoryReports InventoryReport[] @relation("InventoryReportCreator")
+  auditLogs       AuditLog[]
+
+  @@index([status])
+  @@index([deletedAt])
+}
+
+model Role {
+  id          String   @id @default(uuid())
+  key         String   @unique
+  name        String
+  description String?
+  isSystem    Boolean  @default(false)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  permissions RolePermission[]
+  assignments UserRoleAssignment[]
+}
+
+model Permission {
+  id          String          @id @default(uuid())
+  key         String          @unique
+  resource    String
+  action      String
+  scope       PermissionScope
+  description String?
+  createdAt   DateTime        @default(now())
+
+  roles RolePermission[]
+
+  @@unique([resource, action, scope])
+  @@index([resource, action])
+}
+
+model RolePermission {
+  roleId       String
+  permissionId String
+  createdAt    DateTime @default(now())
+
+  role       Role       @relation(fields: [roleId], references: [id], onDelete: Cascade)
+  permission Permission @relation(fields: [permissionId], references: [id], onDelete: Cascade)
+
+  @@id([roleId, permissionId])
+}
+
+model UserRoleAssignment {
+  id         String          @id @default(uuid())
+  userId     String
+  roleId     String
+  scope      PermissionScope @default(GLOBAL)
+  storeId    String?
+  expiresAt  DateTime?
+  assignedAt DateTime        @default(now())
+
+  user  User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+  role  Role   @relation(fields: [roleId], references: [id], onDelete: Cascade)
+  store Store? @relation(fields: [storeId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([roleId])
+  @@index([scope, storeId])
+}
+
+model RefreshSession {
+  id           String   @id @default(uuid())
+  userId       String
+  tokenHash    String   @unique
+  userAgent    String?
+  ipAddress    String?
+  expiresAt    DateTime
+  revokedAt    DateTime?
+  createdAt    DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([expiresAt])
+}
+
+model Store {
+  id            String   @id @default(uuid())
+  name          String
+  description   String?
+  purchasePrice Decimal  @db.Decimal(12, 2)
+  salePrice     Decimal  @db.Decimal(12, 2)
+  stock         Int
+  imagePath     String?
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+  deletedAt     DateTime?
+
+  roleAssignments UserRoleAssignment[]
+  saleDetails     SaleDetail[]
+  inventoryDetails InventoryReportDetail[]
+
+  @@index([deletedAt])
+  @@index([name])
+}
+
+model Sale {
+  id             String       @id @default(uuid())
+  employeeId     String
+  messengerId    String?
+  sellerId       String?
+  amount         Decimal      @db.Decimal(12, 2)
+  amountCash     Decimal      @default(0) @db.Decimal(12, 2)
+  amountTransfer Decimal      @default(0) @db.Decimal(12, 2)
+  paymentMethod  PaymentMethod
+  deliveryPay    Decimal      @default(0) @db.Decimal(12, 2)
+  perfumeCount   Int
+  phone          String?
+  status         SaleStatus   @default(DELIVERY_PENDING)
+  finalizedAt    DateTime?
+  cancelledAt    DateTime?
+  createdAt      DateTime     @default(now())
+  updatedAt      DateTime     @updatedAt
+  deletedAt      DateTime?
+
+  employee User  @relation("EmployeeSales", fields: [employeeId], references: [id])
+  messenger User? @relation("MessengerSales", fields: [messengerId], references: [id])
+  seller User? @relation("SellerSales", fields: [sellerId], references: [id])
+  details SaleDetail[]
+  closureDetails CashClosureDetail[]
+
+  @@index([employeeId])
+  @@index([messengerId])
+  @@index([sellerId])
+  @@index([status])
+  @@index([createdAt])
+  @@index([deletedAt])
+}
+
+model SaleDetail {
+  id        String   @id @default(uuid())
+  saleId    String
+  storeId   String
+  quantity  Int
+  unitPrice Decimal  @db.Decimal(12, 2)
+  purchaseUnitPrice Decimal @db.Decimal(12, 2)
+  createdAt DateTime @default(now())
+
+  sale  Sale  @relation(fields: [saleId], references: [id], onDelete: Cascade)
+  store Store @relation(fields: [storeId], references: [id])
+
+  @@index([saleId])
+  @@index([storeId])
+}
+
+model CashClosure {
+  id                 String            @id @default(uuid())
+  createdById        String
+  fromDate           DateTime
+  toDate             DateTime
+  totalCash          Decimal           @db.Decimal(12, 2)
+  totalTransfer      Decimal           @db.Decimal(12, 2)
+  totalSale          Decimal           @db.Decimal(12, 2)
+  totalMessengerCost Decimal           @db.Decimal(12, 2)
+  netTotal           Decimal           @db.Decimal(12, 2)
+  totalPerfumes      Int
+  pendingMoney       Decimal           @default(0) @db.Decimal(12, 2)
+  pendingMessengerPay Decimal          @default(0) @db.Decimal(12, 2)
+  internalSale       Decimal           @default(0) @db.Decimal(12, 2)
+  generalSale        Decimal           @default(0) @db.Decimal(12, 2)
+  status             CashClosureStatus @default(PENDING)
+  createdAt          DateTime          @default(now())
+  updatedAt          DateTime          @updatedAt
+  deletedAt          DateTime?
+
+  creator User @relation("CashClosureCreator", fields: [createdById], references: [id])
+  details CashClosureDetail[]
+
+  @@index([createdById])
+  @@index([fromDate, toDate])
+  @@index([status])
+}
+
+model CashClosureDetail {
+  id        String @id @default(uuid())
+  closureId String
+  saleId    String
+
+  closure CashClosure @relation(fields: [closureId], references: [id], onDelete: Cascade)
+  sale    Sale        @relation(fields: [saleId], references: [id])
+
+  @@unique([closureId, saleId])
+  @@index([saleId])
+}
+
+model InventoryReport {
+  id                  String   @id @default(uuid())
+  fromDate            DateTime
+  toDate              DateTime
+  createdById         String
+  totalProducts       Int
+  totalInventoryValue Decimal  @db.Decimal(14, 2)
+  createdAt           DateTime @default(now())
+  deletedAt           DateTime?
+
+  creator User @relation("InventoryReportCreator", fields: [createdById], references: [id])
+  details InventoryReportDetail[]
+
+  @@index([createdById])
+  @@index([createdAt])
+}
+
+model InventoryReportDetail {
+  id                String  @id @default(uuid())
+  inventoryReportId String
+  productId         String
+  productName       String
+  productDescription String?
+  purchasePrice     Decimal @db.Decimal(12, 2)
+  stock             Int
+  inventoryValue    Decimal @db.Decimal(14, 2)
+
+  report InventoryReport @relation(fields: [inventoryReportId], references: [id], onDelete: Cascade)
+  product Store          @relation(fields: [productId], references: [id])
+
+  @@index([inventoryReportId])
+  @@index([productId])
+}
+
+model AuditLog {
+  id         String   @id @default(uuid())
+  actorId    String?
+  action     String
+  resource   String
+  resourceId String?
+  metadata   Json?
+  ipAddress  String?
+  userAgent  String?
+  createdAt  DateTime @default(now())
+
+  actor User? @relation(fields: [actorId], references: [id], onDelete: SetNull)
+
+  @@index([actorId])
+  @@index([resource, resourceId])
+  @@index([createdAt])
+}
