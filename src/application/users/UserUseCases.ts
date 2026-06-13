@@ -227,6 +227,9 @@ export class UserUseCases {
         this.sellerStats(user.id, createdAt)
       ]);
       const primaryStats = roleKeys.includes('seller') ? sellerStats : employeeStats;
+      const deliveriesCount = roleKeys.includes('messenger')
+        ? messengerStats.completedDeliveries
+        : primaryStats.orders;
 
       return {
         id: user.id,
@@ -239,7 +242,7 @@ export class UserUseCases {
         roleName: roleNames[0] ?? null,
         orders: primaryStats.orders,
         finalizedOrders: primaryStats.orders,
-        deliveriesCount: primaryStats.orders,
+        deliveriesCount,
         percentage: employeeStats.average,
         average: employeeStats.average,
         dailyAverage: employeeStats.average,
