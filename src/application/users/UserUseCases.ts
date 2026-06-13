@@ -409,7 +409,7 @@ export class UserUseCases {
     where: { employeeId?: string; sellerId?: string },
     createdAt: ReturnType<typeof buildCreatedAtFilter>,
     rangeDays: number,
-    userName: string
+    _userName: string
   ) {
     const sales = await this.prisma.sale.findMany({
       where: {
@@ -425,19 +425,18 @@ export class UserUseCases {
 
     const stats = sales.reduce((totals, sale) => {
       totals.orders += 1;
-      totals.total = totals.total.plus(sale.amount);
       totals.cash = totals.cash.plus(sale.amountCash);
       totals.transfer = totals.transfer.plus(sale.amountTransfer);
       totals.deliveryPay = totals.deliveryPay.plus(sale.deliveryPay);
       totals.perfumes += sale.perfumeCount;
-      totals.productIncome = totals.productIncome.plus(this.saleProductIncome(sale.details));
       if (!sale.sellerId) {
         totals.internalSales = totals.internalSales.plus(sale.amount);
+      } else {
+        totals.productIncome = totals.productIncome.plus(this.saleProductIncome(sale.details));
       }
       return totals;
     }, {
       orders: 0,
-      total: new Prisma.Decimal(0),
       cash: new Prisma.Decimal(0),
       transfer: new Prisma.Decimal(0),
       deliveryPay: new Prisma.Decimal(0),
@@ -445,11 +444,12 @@ export class UserUseCases {
       productIncome: new Prisma.Decimal(0),
       internalSales: new Prisma.Decimal(0)
     });
-    const average = rangeDays > 0 ? stats.total.div(rangeDays) : new Prisma.Decimal(0);
+    const totalSold = stats.internalSales.plus(stats.productIncome);
+    const average = rangeDays > 0 ? totalSold.div(rangeDays) : new Prisma.Decimal(0);
 
     return {
       orders: stats.orders,
-      total: stats.total,
+      total: totalSold,
       cash: stats.cash,
       transfer: stats.transfer,
       deliveryPay: stats.deliveryPay,
