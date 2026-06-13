@@ -95,11 +95,34 @@ export async function storeRoutes(app: FastifyInstance) {
 
 async function canReadStores(request: FastifyRequest) {
   const actor = request.authUser;
-  const roleKeys = actor?.roles.map((role) => role.roleKey) ?? [];
+  const readableRoles = new Set(['admin', 'administrator', 'administrador', 'employee', 'empleado', 'colaborador', 'seller', 'vendedor']);
+  const roleKeys = actor?.roles.map((role) => role.roleKey.toLowerCase()) ?? [];
   const canReadByPermission = actor?.permissions.some((permission) => {
     return permission.resource === 'stores' && permission.action === 'read';
   }) ?? false;
-  const canReadByRole = roleKeys.some((role) => ['admin', 'employee', 'seller'].includes(role));
+  let canReadByRole = roleKeys.some((role) => readableRoles.has(role));
+
+  if (!canReadByRole && actor?.id) {
+    const activeAssignments = await request.server.container.prisma.userRoleAssignment.findMany({
+      where: {
+        userId: actor.id,
+        OR: [{ expiresAt: null }, { expiresAt: { gt: new Date() } }]
+      },
+      select: {
+        role: {
+          select: {
+            key: true,
+            name: true
+          }
+        }
+      }
+    });
+
+    canReadByRole = activeAssignments.some((assignment) => {
+      return readableRoles.has(assignment.role.key.toLowerCase())
+        || readableRoles.has(assignment.role.name.toLowerCase());
+    });
+  }
 
   if (!canReadByPermission && !canReadByRole) {
     throw new ForbiddenError('Permiso requerido para leer productos');
