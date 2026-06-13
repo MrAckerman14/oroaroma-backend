@@ -1,77 +1,56 @@
-![Node.js CI](https://github.com/mucahitnezir/express-starter/workflows/Node.js%20CI/badge.svg?branch=master)
+# Oro Aroma API v2
 
-# Express Starter
+Backend nuevo desde cero con Fastify, Prisma, TypeScript, DDD, Clean Architecture y RBAC granular.
 
-This project was created to be a template when starting a new [express.js](https://github.com/expressjs/express) project.
+## Capas
 
-[![Run on Google Cloud](https://deploy.cloud.run/button.svg)](https://deploy.cloud.run?git_repo=https://github.com/mucahitnezir/express-starter.git)
+- `domain`: reglas puras del negocio.
+- `application`: casos de uso y puertos.
+- `infrastructure`: Prisma, hashing, tokens, persistencia.
+- `presentation`: Fastify, rutas, middlewares, schemas HTTP.
+- `types`: contratos compartidos y tipos transversales.
 
-## Features
+## Comandos
 
-1. ES6+ features with babel (including **es6 import/export** feature).
-2. SQL database implementation with **[Sequelize v6](https://sequelize.org/docs/v6/)** for **postgres dialect** (you can change postgresql anytime).
-3. Compatible with [12 factor app](https://12factor.net/).
-4. Including authentication system with rest api endpoints.
-5. Linting with eslint (airbnb config).
-6. Implemented nodemailer. If you are in development or test mode, you use test smtp account. In production mode, you use real smtp server.
-For more info, browse `src/helpers/mail.js` file.
-7. Production ready Dockerfile.
-8. Test cases written with mocha and chai.
-9. Implemented [sentry](https://sentry.io) error tracking.
-10. Api documentation with [swagger](https://swagger.io/).
-11. Records are never deleted from the database. They are marked as deleted.
-12. Cache management with [redis](https://redis.io/).
-13. One click deploy to [Google Cloud Run](https://cloud.google.com/run).
+```bash
+npm run dev
+npm run build
+npm run typecheck
+npm run prisma:generate
+npm run db:migrate
+npm run db:seed
+npm run seed
+```
 
-## Api Documentation
-Api documentation of this project was created with [swagger](https://swagger.io/).  
-You can access the swagger configuration file from [this link](https://app.swaggerhub.com/apis/mucahitnezir/express-starter/).  
-You can also discover the interactive documentation by going to `/docs` when you run the application.
+## Base de datos local
 
-## Database Selection
-This project is compatible with sql-based databases. You can change default dialect (postgres) in anytime.
-To do this, firstly select your database from the table below.
-Modify `dialect` property in `src/config/sequelize.js` and install required npm package(s) for this database.
+```bash
+docker compose up -d
+cp .env.example .env
+npm run db:migrate
+npm run db:seed
+npm run dev
+```
 
-For more info, visit [sequelize docs](https://sequelize.org/docs/v6/other-topics/dialect-specific-things/)
+Postgres queda expuesto en `localhost:7567` para evitar chocar con otros proyectos locales.
 
-**Note:** The default and active database is postgresql.
-If you want to use postgresql in your project, you don't need to make any changes.
+El seed solo prepara permisos, roles del sistema y un usuario administrador inicial. No crea productos, ventas, reportes ni datos de prueba.
 
-| Database | Dialect | Required npm Package(s) |
-| --- | --- | --- |
-| MySQL | mysql | `yarn add mysql2` |
-| MariaDB | mariadb | `yarn add mariadb` |
-| PostgreSQL | postgres | `yarn add pg pg-hstore` |
-| SQLite | sqlite | `yarn add sqlite3` |
-| Microsoft SQL Server | mssql | `yarn add tedious` |
+Credenciales iniciales:
 
-### Usage of sequelize-cli
-With sequelize-cli package, you can manage model, migration and seed files.
-You can find more information with [document](https://sequelize.org/docs/v6/other-topics/migrations/). 
+- Correo: `admin@oroaroma.local`
+- Contraseña: `ChangeMe123!`
+- Nombre: `admin`
 
-## Installation
-1. Firstly, you have to install npm packages with ``yarn install`` command.
-2. Create empty postgres database.
-3. Create **.env** file by copying *.env.sample* file in **root directory**.
-4. Modify .env file.
-5. Use `yarn run db:migrate` command to create database tables.
-6. Finally, your app will run successfully with ``yarn run start:dev`` command.
+La venta usa `DEFAULT_SELLER_NAME="admin"` como colaborador interno por defecto cuando el frontend no envia `employeeId`.
 
-## Authentication Endpoints
+## RBAC
 
-| Route | HTTP Verb | Request Body | Description |
-| --- | --- | --- | --- |
-| /auth/register | `POST` | {"firstName": "John", "lastName": "Doe", "email": "john.doe@example.com", "password": "123456"} | Create new user. |
-| /auth/login | `POST` | {"email": "john.doe@example.com", "password": "123456"} | Login endpoint. |
-| /auth/me | `GET` | Empty | Fetch current user. |
-| /auth/me | `PUT` | {"firstName": "John", "lastName": "Doe", "email": "john.doe@example.com"} | Update current user. |
-| /auth/me | `DELETE` | Empty | Delete current user. |
-| /auth/me/password | `PUT` | {"current": "current-password", "password": "new-password"} | Update password of current user. |
+Los permisos se modelan como `resource + action + scope`, por ejemplo:
 
-## Contribution
-Anyone interested in the project can contribute to this repository. To do this, first fork the repository.
-Then make the changes in your repository. Finally, send a pull request to this repository.
+- `sales:create:own`
+- `sales:read:store`
+- `reports:cash:global`
+- `users:update:global`
 
-## License
-**Express Starter** is licensed under the **MIT license**.
+El usuario recibe roles por alcance (`global`, `store`, `own`) mediante `UserRoleAssignment`. El motor de autorización evalua permisos y contexto, no roles hardcodeados.
