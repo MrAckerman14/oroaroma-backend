@@ -76,19 +76,21 @@ export class SaleUseCases {
         throw new ValidationAppError('No se puede cancelar una venta incluida en un cierre de caja');
       }
 
-      if (input.items && sale.status === 'CANCELLED') {
+      const itemChangesRequested = input.items ? this.saleItemsChanged(sale.details, input.items) : false;
+
+      if (itemChangesRequested && sale.status === 'CANCELLED') {
         throw new ValidationAppError('No se pueden editar productos de una venta cancelada');
       }
 
-      if (input.items && input.status === 'CANCELLED') {
+      if (itemChangesRequested && input.status === 'CANCELLED') {
         throw new ValidationAppError('Edita los productos antes de cancelar la venta');
       }
 
-      if (input.items && sale.closureDetails.length > 0) {
+      if (itemChangesRequested && sale.closureDetails.length > 0) {
         throw new ValidationAppError('No se pueden editar productos de una venta incluida en un cierre de caja');
       }
 
-      const itemUpdate = input.items
+      const itemUpdate = input.items && itemChangesRequested
         ? await this.replaceSaleItems(tx, id, input.items)
         : undefined;
 
@@ -324,6 +326,29 @@ export class SaleUseCases {
       productId,
       quantity
     }));
+  }
+
+  private saleItemsChanged(
+    currentDetails: Array<{ storeId: string; quantity: number }>,
+    inputItems: Array<{ productId: string; quantity: number }>
+  ) {
+    const current = new Map<string, number>();
+    for (const detail of currentDetails) {
+      current.set(detail.storeId, (current.get(detail.storeId) ?? 0) + detail.quantity);
+    }
+
+    const incoming = new Map<string, number>();
+    for (const item of this.mergeItems(inputItems)) {
+      incoming.set(item.productId, item.quantity);
+    }
+
+    if (current.size !== incoming.size) return true;
+
+    for (const [productId, quantity] of current.entries()) {
+      if (incoming.get(productId) !== quantity) return true;
+    }
+
+    return false;
   }
 
   private paginated<T>(items: T[], total: number, pagination: { page: number; pageSize: number }) {
