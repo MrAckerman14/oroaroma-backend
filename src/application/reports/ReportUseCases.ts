@@ -244,7 +244,7 @@ export class ReportUseCases {
         if (sale.sellerId) {
           acc.generalSale = acc.generalSale.plus(saleProductTotal);
         } else {
-          acc.internalSale = acc.internalSale.plus(sale.amount);
+          acc.internalSale = acc.internalSale.plus(saleProductTotal);
         }
       }
 
@@ -287,6 +287,7 @@ export class ReportUseCases {
 
     for (const sale of sales) {
       if (sale.status === 'FINALIZED') {
+        const saleProductTotal = this.saleProductSaleTotal(sale.details);
         const employee = employeeRows.get(sale.employeeId) ?? this.emptyEmployeeSummary(sale.employeeId, sale.employee);
         employee._sum.amount = employee._sum.amount.plus(sale.amount);
         employee._sum.amountCash = employee._sum.amountCash.plus(sale.amountCash);
@@ -294,16 +295,19 @@ export class ReportUseCases {
         employee._sum.deliveryPay = employee._sum.deliveryPay.plus(sale.deliveryPay);
         employee._sum.perfumeCount += sale.perfumeCount;
         employee._count.id += 1;
-        employee.total = employee.total.plus(sale.amount);
-        employee.totalSold = employee.totalSold.plus(sale.amount);
         employee.cash = employee.cash.plus(sale.amountCash);
         employee.transfer = employee.transfer.plus(sale.amountTransfer);
         employee.finalizedDeliveries += 1;
         employee.quantity += sale.perfumeCount;
         employee.shippingCost = employee.shippingCost.plus(sale.deliveryPay);
         if (!sale.sellerId) {
-          employee.internalSale = employee.internalSale.plus(sale.amount);
+          employee.internalSale = employee.internalSale.plus(saleProductTotal);
           employee.internalSales = employee.internalSale;
+          employee.total = employee.total.plus(saleProductTotal);
+          employee.totalSold = employee.totalSold.plus(saleProductTotal);
+        } else {
+          employee.total = employee.total.plus(saleProductTotal);
+          employee.totalSold = employee.totalSold.plus(saleProductTotal);
         }
         employee.net = employee.cash.minus(employee.shippingCost);
         employee.netCash = employee.net;

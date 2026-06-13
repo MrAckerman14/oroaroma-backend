@@ -424,15 +424,16 @@ export class UserUseCases {
     });
 
     const stats = sales.reduce((totals, sale) => {
+      const saleProductTotal = this.saleProductIncome(sale.details);
       totals.orders += 1;
       totals.cash = totals.cash.plus(sale.amountCash);
       totals.transfer = totals.transfer.plus(sale.amountTransfer);
       totals.deliveryPay = totals.deliveryPay.plus(sale.deliveryPay);
       totals.perfumes += sale.perfumeCount;
       if (!sale.sellerId) {
-        totals.internalSales = totals.internalSales.plus(sale.amount);
+        totals.internalSales = totals.internalSales.plus(saleProductTotal);
       } else {
-        totals.productIncome = totals.productIncome.plus(this.saleProductIncome(sale.details));
+        totals.productIncome = totals.productIncome.plus(saleProductTotal);
       }
       return totals;
     }, {
