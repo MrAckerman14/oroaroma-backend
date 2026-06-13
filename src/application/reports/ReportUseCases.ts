@@ -228,6 +228,7 @@ export class ReportUseCases {
     deliveryPay: Prisma.Decimal;
     perfumeCount: number;
     employee: { name: string };
+    sellerId: string | null;
     details: Array<{ quantity: number; unitPrice: Prisma.Decimal }>;
   }>) {
     return sales.reduce((acc, sale) => {
@@ -239,9 +240,10 @@ export class ReportUseCases {
         acc.totalPerfumes += sale.perfumeCount;
         acc.ordersCount += 1;
         acc.totalMessengerCost = acc.totalMessengerCost.plus(sale.deliveryPay);
-        acc.generalSale = acc.generalSale.plus(saleProductTotal);
 
-        if (sale.employee.name === env.DEFAULT_SELLER_NAME) {
+        if (sale.sellerId) {
+          acc.generalSale = acc.generalSale.plus(saleProductTotal);
+        } else {
           acc.internalSale = acc.internalSale.plus(sale.amount);
         }
       }
@@ -581,6 +583,7 @@ export class ReportUseCases {
   private saleCalculationInclude() {
     return {
       employee: { select: { name: true } },
+      seller: { select: { id: true } },
       details: { select: { quantity: true, unitPrice: true } }
     } as const;
   }
