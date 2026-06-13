@@ -1,5 +1,4 @@
 import { Prisma, type PrismaClient } from '@prisma/client';
-import { env } from '../../config/env.js';
 import { ValidationAppError } from '../../shared/errors/AppError.js';
 import type { CreateSaleInput } from '../../types/sales.js';
 import { presentSale } from './salePresenter.js';
@@ -17,21 +16,6 @@ export class CreateSaleUseCase {
     }
 
     return this.prisma.$transaction(async (tx) => {
-      const defaultSeller = input.sellerId
-        ? null
-        : await tx.user.findFirst({
-          where: {
-            name: env.DEFAULT_SELLER_NAME,
-            deletedAt: null,
-            status: 'ACTIVE'
-          },
-          select: { id: true }
-        });
-
-      if (!input.sellerId && !defaultSeller) {
-        throw new ValidationAppError('No existe el vendedor por defecto configurado');
-      }
-
       const productIds = input.items.map((item) => item.productId);
       const products = await tx.store.findMany({
         where: { id: { in: productIds }, deletedAt: null }
@@ -60,7 +44,7 @@ export class CreateSaleUseCase {
         data: {
           employeeId,
           messengerId: input.messengerId ?? null,
-          sellerId: input.sellerId ?? defaultSeller?.id ?? null,
+          sellerId: input.sellerId ?? null,
           amount,
           amountCash,
           amountTransfer,

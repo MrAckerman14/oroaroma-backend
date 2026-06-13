@@ -154,9 +154,20 @@ export class SaleUseCases {
       throw new ValidationAppError('No se puede eliminar una venta incluida en un cierre de caja');
     }
 
-    await this.prisma.sale.update({
-      where: { id },
-      data: { deletedAt: new Date() }
+    await this.prisma.$transaction(async (tx) => {
+      if (sale.status !== 'CANCELLED') {
+        for (const detail of sale.details) {
+          await tx.store.update({
+            where: { id: detail.storeId },
+            data: { stock: { increment: detail.quantity } }
+          });
+        }
+      }
+
+      await tx.sale.update({
+        where: { id },
+        data: { deletedAt: new Date() }
+      });
     });
   }
 
