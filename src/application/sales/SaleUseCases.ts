@@ -65,12 +65,13 @@ export class SaleUseCases {
     this.assertCanAccessSale(actor, sale, action);
 
     const updatedSale = await this.prisma.$transaction(async (tx) => {
-      if (input.status === 'DELIVERY_PENDING' && sale.status === 'CANCELLED') {
-        throw new ValidationAppError('No se puede reabrir una venta cancelada automaticamente');
-      }
+      const isAdmin = this.hasAnyRole(actor, ['admin']);
+      const isReopeningCancelled = sale.status === 'CANCELLED'
+        && input.status !== undefined
+        && input.status !== 'CANCELLED';
 
-      if (input.status === 'FINALIZED' && sale.status === 'CANCELLED') {
-        throw new ValidationAppError('No se puede finalizar una venta cancelada');
+      if (isReopeningCancelled && !isAdmin) {
+        throw new ValidationAppError('Solo un administrador puede reabrir una venta cancelada');
       }
 
       if (input.status === 'CANCELLED' && sale.closureDetails.length > 0 && sale.status !== 'DELIVERY_PENDING') {
@@ -102,6 +103,28 @@ export class SaleUseCases {
             where: { id: detail.storeId },
             data: { stock: { increment: detail.quantity } }
           });
+        }
+      }
+
+      if (isReopeningCancelled) {
+        const details = await tx.saleDetail.findMany({
+          where: { saleId: id },
+          include: { store: { select: { name: true } } }
+        });
+
+        for (const detail of details) {
+          const updated = await tx.store.updateMany({
+            where: {
+              id: detail.storeId,
+              stock: { gte: detail.quantity },
+              deletedAt: null
+            },
+            data: { stock: { decrement: detail.quantity } }
+          });
+
+          if (updated.count !== 1) {
+            throw new ValidationAppError(`Stock insuficiente para reabrir ${detail.store.name}`);
+          }
         }
       }
 
@@ -140,7 +163,11 @@ export class SaleUseCases {
           ...(input.status ? {
             status: input.status,
             finalizedAt: input.status === 'FINALIZED' ? new Date() : sale.finalizedAt,
-            cancelledAt: input.status === 'CANCELLED' ? new Date() : sale.cancelledAt
+            cancelledAt: input.status === 'CANCELLED'
+              ? new Date()
+              : isReopeningCancelled
+                ? null
+                : sale.cancelledAt
           } : {})
         },
         include: this.saleIncludes()
@@ -214,6 +241,10 @@ export class SaleUseCases {
     if (canOwn && [sale.employeeId, sale.sellerId, sale.messengerId].includes(actor.id)) return;
 
     throw new ForbiddenError('No tienes acceso a esta venta');
+  }
+
+  private hasAnyRole(actor: AuthenticatedUser, roles: string[]) {
+    return actor.roles.some((role) => roles.includes(role.roleKey));
   }
 
   private saleIncludes() {

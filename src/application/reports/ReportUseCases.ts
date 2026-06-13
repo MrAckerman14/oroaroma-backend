@@ -265,7 +265,7 @@ export class ReportUseCases {
     });
   }
 
-  private cashSummary(actor: AuthenticatedUser, sales: Array<{
+  private async cashSummary(actor: AuthenticatedUser, sales: Array<{
     employeeId: string;
     messengerId: string | null;
     sellerId: string | null;
@@ -301,6 +301,10 @@ export class ReportUseCases {
         employee.finalizedDeliveries += 1;
         employee.quantity += sale.perfumeCount;
         employee.shippingCost = employee.shippingCost.plus(sale.deliveryPay);
+        if (!sale.sellerId) {
+          employee.internalSale = employee.internalSale.plus(sale.amount);
+          employee.internalSales = employee.internalSale;
+        }
         employee.net = employee.cash.minus(employee.shippingCost);
         employee.netCash = employee.net;
         employeeRows.set(sale.employeeId, employee);
@@ -340,6 +344,26 @@ export class ReportUseCases {
       }
     }
 
+    if (this.canViewCashDetail(actor, 'messengers') && this.hasAnyRole(actor, ['admin'])) {
+      const messengers = await this.prisma.user.findMany({
+        where: {
+          deletedAt: null,
+          status: 'ACTIVE',
+          roleAssignments: {
+            some: { role: { key: 'messenger' } }
+          }
+        },
+        select: { id: true, name: true, email: true },
+        orderBy: { name: 'asc' }
+      });
+
+      for (const messenger of messengers) {
+        if (!messengerRows.has(messenger.id)) {
+          messengerRows.set(messenger.id, this.emptyMessengerSummary(messenger.id, messenger));
+        }
+      }
+    }
+
     return {
       totalSale: totals.totalSale,
       totalCash: totals.totalCash,
@@ -350,7 +374,9 @@ export class ReportUseCases {
       ordersCount: totals.ordersCount,
       detailEmployee: this.canViewCashDetail(actor, 'employees') ? [...employeeRows.values()] : [],
       detailSeller: this.canViewCashDetail(actor, 'sellers') ? [...sellerRows.values()] : [],
-      detailMessenger: this.canViewCashDetail(actor, 'messengers') ? [...messengerRows.values()] : []
+      detailMessenger: this.canViewCashDetail(actor, 'messengers')
+        ? [...messengerRows.values()].sort((a, b) => a.messenger.name.localeCompare(b.messenger.name))
+        : []
     };
   }
 
@@ -373,6 +399,8 @@ export class ReportUseCases {
       finalizedDeliveries: 0,
       quantity: 0,
       shippingCost: new Prisma.Decimal(0),
+      internalSale: new Prisma.Decimal(0),
+      internalSales: new Prisma.Decimal(0),
       net: new Prisma.Decimal(0),
       netCash: new Prisma.Decimal(0)
     };
@@ -496,7 +524,7 @@ export class ReportUseCases {
       }),
       this.prisma.cashClosureDetail.count({ where: { closureId: id } })
     ]);
-    const closureSummary = this.cashSummary(actor, summaryDetails.map((detail) => detail.sale));
+    const closureSummary = await this.cashSummary(actor, summaryDetails.map((detail) => detail.sale));
 
     return this.presentCashClosure({
       ...closure,

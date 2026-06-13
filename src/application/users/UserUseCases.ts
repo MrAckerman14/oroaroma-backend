@@ -1,5 +1,5 @@
 import { Prisma, type PrismaClient, type PermissionScope, type UserStatus } from '@prisma/client';
-import { employeeBonusConfig, env } from '../../config/env.js';
+import { employeeBonusConfig } from '../../config/env.js';
 import { ConflictError, NotFoundError, ValidationAppError } from '../../shared/errors/AppError.js';
 import { buildCreatedAtFilter, dateRangeOrCurrentDay } from '../../shared/utils/dateRange.js';
 import {
@@ -177,7 +177,7 @@ export class UserUseCases {
       const roleKeys = user.roleAssignments.map((assignment) => assignment.role.key);
       const roleNames = user.roleAssignments.map((assignment) => assignment.role.name);
       const messengerStats = roleKeys.includes('messenger')
-        ? await this.messengerStats(user.id, createdAt)
+        ? await this.messengerStats(user.id, createdAt, actor)
         : this.emptyMessengerStats();
 
       return {
@@ -431,6 +431,9 @@ export class UserUseCases {
       totals.deliveryPay = totals.deliveryPay.plus(sale.deliveryPay);
       totals.perfumes += sale.perfumeCount;
       totals.productIncome = totals.productIncome.plus(this.saleProductIncome(sale.details));
+      if (!sale.sellerId) {
+        totals.internalSales = totals.internalSales.plus(sale.amount);
+      }
       return totals;
     }, {
       orders: 0,
@@ -439,7 +442,8 @@ export class UserUseCases {
       transfer: new Prisma.Decimal(0),
       deliveryPay: new Prisma.Decimal(0),
       perfumes: 0,
-      productIncome: new Prisma.Decimal(0)
+      productIncome: new Prisma.Decimal(0),
+      internalSales: new Prisma.Decimal(0)
     });
     const average = rangeDays > 0 ? stats.total.div(rangeDays) : new Prisma.Decimal(0);
 
@@ -453,7 +457,7 @@ export class UserUseCases {
       productIncome: stats.productIncome,
       perfumeIncome: stats.productIncome,
       perfumeCost: stats.productIncome,
-      internalSales: userName === env.DEFAULT_SELLER_NAME ? stats.total : new Prisma.Decimal(0),
+      internalSales: stats.internalSales,
       average,
       bonus: this.employeeBonus(average),
       net: stats.cash.minus(stats.deliveryPay)
