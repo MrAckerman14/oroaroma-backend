@@ -79,6 +79,7 @@ const roleDefinitions = {
     description: 'Consulta y da seguimiento a sus ventas asignadas',
     permissions: [
       'stores:read:global',
+      'sales:create:own',
       'sales:read:own',
       'reports:cash:own',
       'reports:cash-detail-messengers:own',

@@ -1,4 +1,4 @@
-import type { FastifyInstance } from 'fastify';
+import type { FastifyInstance, FastifyRequest } from 'fastify';
 import { CreateSaleUseCase } from '../../../application/sales/CreateSaleUseCase.js';
 import { SaleUseCases } from '../../../application/sales/SaleUseCases.js';
 import { ForbiddenError } from '../../../shared/errors/AppError.js';
@@ -22,7 +22,7 @@ export async function saleRoutes(app: FastifyInstance) {
 
   app.post(
     '/sales',
-    { preHandler: [app.authenticate, app.authorize('sales', 'create')] },
+    { preHandler: [app.authenticate, canCreateSales] },
     async (request, reply) => {
       const input = createSaleSchema.parse(request.body);
       const canCreateForOthers = request.authUser!.permissions.some((permission) => {
@@ -57,4 +57,17 @@ export async function saleRoutes(app: FastifyInstance) {
       return reply.status(204).send();
     }
   );
+}
+
+async function canCreateSales(request: FastifyRequest) {
+  const actor = request.authUser;
+  const hasPermission = actor?.permissions.some((permission) => {
+    return permission.resource === 'sales' && permission.action === 'create';
+  }) ?? false;
+  const creatableRoles = new Set(['admin', 'administrator', 'administrador', 'employee', 'empleado', 'colaborador', 'seller', 'vendedor']);
+  const hasRole = actor?.roles.some((role) => creatableRoles.has(role.roleKey.toLowerCase())) ?? false;
+
+  if (!hasPermission && !hasRole) {
+    throw new ForbiddenError('Permiso requerido para crear ventas');
+  }
 }
