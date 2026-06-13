@@ -150,10 +150,6 @@ export class SaleUseCases {
     const sale = await this.findActive(id);
     this.assertCanAccessSale(actor, sale, 'delete');
 
-    if (sale.closureDetails.length > 0) {
-      throw new ValidationAppError('No se puede eliminar una venta incluida en un cierre de caja');
-    }
-
     await this.prisma.$transaction(async (tx) => {
       if (sale.status !== 'CANCELLED') {
         for (const detail of sale.details) {
