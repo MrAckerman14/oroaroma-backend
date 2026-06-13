@@ -17,10 +17,10 @@ export async function userRoutes(app: FastifyInstance) {
 
   app.get(
     '/users/plain',
-    { preHandler: [app.authenticate, app.authorize('users', 'read')] },
+    { preHandler: [app.authenticate] },
     async (request) => {
       const query = paginationQuerySchema.parse(request.query);
-      return { data: await users.list(query) };
+      return { data: await users.listOptions(query) };
     }
   );
 

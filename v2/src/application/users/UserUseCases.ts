@@ -142,6 +142,52 @@ export class UserUseCases {
     return this.paginated(items.map((item) => this.presentUser(item)), total, pagination);
   }
 
+  async listOptions(pagination: PaginationInput) {
+    const where = { deletedAt: null, status: 'ACTIVE' as const };
+    const [items, total] = await Promise.all([
+      this.prisma.user.findMany({
+        where,
+        select: {
+          id: true,
+          name: true,
+          email: true,
+          status: true,
+          roleAssignments: {
+            select: {
+              role: {
+                select: {
+                  key: true,
+                  name: true
+                }
+              }
+            }
+          }
+        },
+        orderBy: { name: 'asc' },
+        skip: (pagination.page - 1) * pagination.pageSize,
+        take: pagination.pageSize
+      }),
+      this.prisma.user.count({ where })
+    ]);
+
+    return this.paginated(items.map((user) => {
+      const roleKeys = user.roleAssignments.map((assignment) => assignment.role.key);
+      const roleNames = user.roleAssignments.map((assignment) => assignment.role.name);
+
+      return {
+        id: user.id,
+        name: user.name,
+        email: user.email,
+        status: user.status,
+        roles: roleKeys,
+        roleKey: roleKeys[0] ?? null,
+        role: roleNames[0] ?? null,
+        roleName: roleNames[0] ?? null,
+        roleAssignments: user.roleAssignments
+      };
+    }), total, pagination);
+  }
+
   async dashboard(input: DashboardInput) {
     const range = dateRangeOrCurrentDay(input);
     const createdAt = buildCreatedAtFilter(range);

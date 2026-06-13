@@ -156,7 +156,7 @@ async function main() {
   }
 
   const adminRole = await prisma.role.findUniqueOrThrow({ where: { key: 'admin' } });
-  const adminPasswordHash = await bcrypt.hash('123', 12);
+  const adminPasswordHash = await bcrypt.hash('ChangeMe123!', 12);
   const admin = await prisma.user.upsert({
     where: { email: 'admin@oroaroma.local' },
     update: {
