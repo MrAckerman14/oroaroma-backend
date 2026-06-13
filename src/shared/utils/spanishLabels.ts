@@ -6,8 +6,8 @@ export const userStatusLabels: Record<string, string> = {
 
 export const saleStatusLabels: Record<string, string> = {
   DELIVERY_PENDING: 'Pendiente',
-  FINALIZED: 'Finalizada',
-  CANCELLED: 'Cancelada'
+  FINALIZED: 'Completado',
+  CANCELLED: 'Finalizado'
 };
 
 export const paymentMethodLabels: Record<string, string> = {
