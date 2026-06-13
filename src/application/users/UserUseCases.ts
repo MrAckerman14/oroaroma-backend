@@ -10,6 +10,7 @@ import {
   userStatusLabels
 } from '../../shared/utils/spanishLabels.js';
 import type { PasswordHasher } from '../../infrastructure/security/PasswordHasher.js';
+import type { AuthenticatedUser } from '../../types/rbac.js';
 
 export interface CreateUserInput {
   name: string;
@@ -142,7 +143,9 @@ export class UserUseCases {
     return this.paginated(items.map((item) => this.presentUser(item)), total, pagination);
   }
 
-  async listOptions(pagination: PaginationInput) {
+  async listOptions(input: DashboardInput, actor?: AuthenticatedUser) {
+    const range = dateRangeOrCurrentDay(input);
+    const createdAt = buildCreatedAtFilter(range);
     const where = { deletedAt: null, status: 'ACTIVE' as const };
     const [items, total] = await Promise.all([
       this.prisma.user.findMany({
@@ -164,15 +167,18 @@ export class UserUseCases {
           }
         },
         orderBy: { name: 'asc' },
-        skip: (pagination.page - 1) * pagination.pageSize,
-        take: pagination.pageSize
+        skip: (input.page - 1) * input.pageSize,
+        take: input.pageSize
       }),
       this.prisma.user.count({ where })
     ]);
 
-    return this.paginated(items.map((user) => {
+    const presentedItems = await Promise.all(items.map(async (user) => {
       const roleKeys = user.roleAssignments.map((assignment) => assignment.role.key);
       const roleNames = user.roleAssignments.map((assignment) => assignment.role.name);
+      const messengerStats = roleKeys.includes('messenger')
+        ? await this.messengerStats(user.id, createdAt, actor)
+        : this.emptyMessengerStats();
 
       return {
         id: user.id,
@@ -183,9 +189,17 @@ export class UserUseCases {
         roleKey: roleKeys[0] ?? null,
         role: roleNames[0] ?? null,
         roleName: roleNames[0] ?? null,
-        roleAssignments: user.roleAssignments
+        roleAssignments: user.roleAssignments,
+        completedDeliveries: messengerStats.completedDeliveries,
+        deliveriesCount: messengerStats.completedDeliveries,
+        deliveryPayment: messengerStats.deliveryPayment,
+        pendingDeliveryPay: messengerStats.pendingDeliveryPay,
+        pendingMoney: messengerStats.pendingMoney,
+        pendingCash: messengerStats.pendingCash
       };
-    }), total, pagination);
+    }));
+
+    return this.paginated(presentedItems, total, input);
   }
 
   async dashboard(input: DashboardInput) {
@@ -509,13 +523,19 @@ export class UserUseCases {
     };
   }
 
-  private async messengerStats(messengerId: string, createdAt: ReturnType<typeof buildCreatedAtFilter>) {
+  private async messengerStats(
+    messengerId: string,
+    createdAt: ReturnType<typeof buildCreatedAtFilter>,
+    actor?: AuthenticatedUser
+  ) {
+    const scopedWhere = this.userStatsAccessWhere(actor);
     const [completed, pending] = await Promise.all([
       this.prisma.sale.aggregate({
         where: {
           messengerId,
           status: { in: ['FINALIZED', 'CANCELLED'] },
           deletedAt: null,
+          ...scopedWhere,
           ...(createdAt ? { createdAt } : {})
         },
         _count: { id: true }
@@ -525,6 +545,7 @@ export class UserUseCases {
           messengerId,
           status: 'DELIVERY_PENDING',
           deletedAt: null,
+          ...scopedWhere,
           ...(createdAt ? { createdAt } : {})
         },
         _sum: { amountCash: true, deliveryPay: true }
@@ -542,6 +563,39 @@ export class UserUseCases {
       pendingDeliveryPay,
       pendingMoney,
       pendingCash: pendingMoney
+    };
+  }
+
+  private emptyMessengerStats() {
+    const zero = new Prisma.Decimal(0);
+
+    return {
+      deliveries: 0,
+      completedDeliveries: 0,
+      deliveryPayment: zero,
+      deliveryPay: zero,
+      shippingPayment: zero,
+      pendingDeliveryPay: zero,
+      pendingMoney: zero,
+      pendingCash: zero
+    };
+  }
+
+  private userStatsAccessWhere(actor?: AuthenticatedUser): Prisma.SaleWhereInput {
+    if (!actor) return {};
+
+    const canReadGlobal = actor.permissions.some((permission) => {
+      return permission.key === 'users:read:global' || permission.key === 'reports:cash:global';
+    });
+
+    if (canReadGlobal) return {};
+
+    return {
+      OR: [
+        { employeeId: actor.id },
+        { sellerId: actor.id },
+        { messengerId: actor.id }
+      ]
     };
   }
 

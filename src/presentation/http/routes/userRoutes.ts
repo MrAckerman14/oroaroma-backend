@@ -1,6 +1,6 @@
 import type { FastifyInstance } from 'fastify';
 import { UserUseCases } from '../../../application/users/UserUseCases.js';
-import { dateRangePaginationQuerySchema, idParamsSchema, paginationQuerySchema } from '../schemas/commonSchemas.js';
+import { dateRangePaginationQuerySchema, idParamsSchema } from '../schemas/commonSchemas.js';
 import { assignRoleSchema, createUserSchema, updateUserSchema } from '../schemas/userSchemas.js';
 
 export async function userRoutes(app: FastifyInstance) {
@@ -19,8 +19,8 @@ export async function userRoutes(app: FastifyInstance) {
     '/users/plain',
     { preHandler: [app.authenticate] },
     async (request) => {
-      const query = paginationQuerySchema.parse(request.query);
-      return { data: await users.listOptions(query) };
+      const query = dateRangePaginationQuerySchema.parse(request.query);
+      return { data: await users.listOptions(query, request.authUser!) };
     }
   );
 
