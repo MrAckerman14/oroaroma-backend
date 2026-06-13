@@ -661,12 +661,24 @@ export class ReportUseCases {
   }
 
   private canViewCashDetail(actor: AuthenticatedUser, detail: 'messengers' | 'sellers' | 'employees') {
+    if (detail === 'messengers' && this.hasAnyRole(actor, ['admin', 'employee', 'seller', 'messenger'])) {
+      return true;
+    }
+
+    if ((detail === 'sellers' || detail === 'employees') && !this.hasAnyRole(actor, ['admin'])) {
+      return false;
+    }
+
     const action = `cash-detail-${detail}`;
     return actor.permissions.some((permission) => {
       return permission.resource === 'reports'
         && permission.action === action
         && (permission.scope === 'global' || permission.scope === 'own');
     });
+  }
+
+  private hasAnyRole(actor: AuthenticatedUser, roles: string[]) {
+    return actor.roles.some((role) => roles.includes(role.roleKey));
   }
 
   private canReadGlobalCashClosures(actor: AuthenticatedUser) {
