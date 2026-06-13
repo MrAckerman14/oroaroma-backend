@@ -53,6 +53,7 @@ export class CreateSaleUseCase {
           perfumeCount,
           status: 'DELIVERY_PENDING',
           phone: input.phone ?? null,
+          description: input.description ?? null,
           details: {
             create: input.items.map((item) => {
               const product = productsById.get(item.productId);

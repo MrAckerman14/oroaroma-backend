@@ -12,5 +12,6 @@ export interface CreateSaleInput {
   amountTransfer: string;
   deliveryPay: string;
   phone?: string | undefined;
+  description?: string | undefined;
   items: CreateSaleItemInput[];
 }

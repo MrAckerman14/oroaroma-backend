@@ -16,6 +16,7 @@ export const createSaleSchema = z.object({
   amountTransfer: moneySchema.default('0'),
   deliveryPay: moneySchema.default('0'),
   phone: z.string().min(6).max(30).optional(),
+  description: z.string().max(500).optional(),
   items: z.array(saleItemSchema).min(1)
 });
 
@@ -28,6 +29,7 @@ export const updateSaleSchema = z.object({
   amountTransfer: moneySchema.optional(),
   deliveryPay: moneySchema.optional(),
   phone: z.string().min(6).max(30).nullable().optional(),
+  description: z.string().max(500).nullable().optional(),
   status: z.enum(['DELIVERY_PENDING', 'FINALIZED', 'CANCELLED']).optional(),
   items: z.array(saleItemSchema).min(1).optional()
 });

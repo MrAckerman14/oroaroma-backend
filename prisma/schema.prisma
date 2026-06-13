@@ -168,6 +168,7 @@ model Sale {
   deliveryPay    Decimal      @default(0) @db.Decimal(12, 2)
   perfumeCount   Int
   phone          String?
+  description    String?
   status         SaleStatus   @default(DELIVERY_PENDING)
   finalizedAt    DateTime?
   cancelledAt    DateTime?
