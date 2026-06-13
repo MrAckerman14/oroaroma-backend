@@ -348,26 +348,6 @@ export class ReportUseCases {
       }
     }
 
-    if (this.canViewCashDetail(actor, 'messengers') && this.hasAnyRole(actor, ['admin'])) {
-      const messengers = await this.prisma.user.findMany({
-        where: {
-          deletedAt: null,
-          status: 'ACTIVE',
-          roleAssignments: {
-            some: { role: { key: 'messenger' } }
-          }
-        },
-        select: { id: true, name: true, email: true },
-        orderBy: { name: 'asc' }
-      });
-
-      for (const messenger of messengers) {
-        if (!messengerRows.has(messenger.id)) {
-          messengerRows.set(messenger.id, this.emptyMessengerSummary(messenger.id, messenger));
-        }
-      }
-    }
-
     return {
       totalSale: totals.totalSale,
       totalCash: totals.totalCash,
