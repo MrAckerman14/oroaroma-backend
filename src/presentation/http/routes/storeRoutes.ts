@@ -1,5 +1,5 @@
 import type { FastifyInstance, FastifyRequest } from 'fastify';
-import { ValidationAppError } from '../../../shared/errors/AppError.js';
+import { ForbiddenError, ValidationAppError } from '../../../shared/errors/AppError.js';
 import { StoreUseCases } from '../../../application/stores/StoreUseCases.js';
 import type { UploadFileInput } from '../../../application/files/StorageService.js';
 import { idParamsSchema, paginationQuerySchema } from '../schemas/commonSchemas.js';
@@ -10,7 +10,7 @@ export async function storeRoutes(app: FastifyInstance) {
 
   app.get(
     '/stores',
-    { preHandler: [app.authenticate, app.authorize('stores', 'read')] },
+    { preHandler: [app.authenticate, canReadStores] },
     async (request) => {
       const query = paginationQuerySchema.parse(request.query);
       return { data: await stores.list(query) };
@@ -29,7 +29,7 @@ export async function storeRoutes(app: FastifyInstance) {
 
   app.get(
     '/stores/:id',
-    { preHandler: [app.authenticate, app.authorize('stores', 'read')] },
+    { preHandler: [app.authenticate, canReadStores] },
     async (request) => {
       const params = idParamsSchema.parse(request.params);
       return { data: await stores.findById(params.id) };
@@ -91,6 +91,19 @@ export async function storeRoutes(app: FastifyInstance) {
       return reply.status(200).send({ data: result });
     }
   );
+}
+
+async function canReadStores(request: FastifyRequest) {
+  const actor = request.authUser;
+  const roleKeys = actor?.roles.map((role) => role.roleKey) ?? [];
+  const canReadByPermission = actor?.permissions.some((permission) => {
+    return permission.resource === 'stores' && permission.action === 'read';
+  }) ?? false;
+  const canReadByRole = roleKeys.some((role) => ['admin', 'employee', 'seller'].includes(role));
+
+  if (!canReadByPermission && !canReadByRole) {
+    throw new ForbiddenError('Permiso requerido para leer productos');
+  }
 }
 
 async function parseCreateStoreRequest(request: FastifyRequest) {
