@@ -63,7 +63,7 @@ export class ReportUseCases {
     const saleIds = this.validateRequestedSaleIds(input.saleIds);
     const where: Prisma.SaleWhereInput = saleIds?.length
       ? this.closableSalesByIdsWhere(actor, saleIds)
-      : this.closableSalesWhere(actor, input);
+      : this.reconciliationSalesWhere(actor, input);
 
     const sales = await this.prisma.sale.findMany({
       where,
@@ -324,15 +324,16 @@ export class ReportUseCases {
 
       if (sale.messengerId && sale.messenger) {
         const messenger = messengerRows.get(sale.messengerId) ?? this.emptyMessengerSummary(sale.messengerId, sale.messenger);
-        if (sale.status === 'FINALIZED') {
+        if (sale.status === 'FINALIZED' || sale.status === 'CANCELLED') {
           messenger._sum.amountCash = messenger._sum.amountCash.plus(sale.amountCash);
           messenger._sum.deliveryPay = messenger._sum.deliveryPay.plus(sale.deliveryPay);
           messenger._count.id += 1;
           messenger.finalizedDeliveries += 1;
         }
 
-        if (sale.status === 'CANCELLED') {
-          messenger._sum.deliveryPay = messenger._sum.deliveryPay.plus(sale.deliveryPay);
+        if (sale.status === 'DELIVERY_PENDING') {
+          messenger.pendingDeliveryPay = messenger.pendingDeliveryPay.plus(sale.deliveryPay);
+          messenger.pendingMoney = messenger.pendingMoney.plus(sale.amountCash);
         }
 
         messengerRows.set(sale.messengerId, messenger);
@@ -417,7 +418,9 @@ export class ReportUseCases {
         deliveryPay: new Prisma.Decimal(0)
       },
       _count: { id: 0 },
-      finalizedDeliveries: 0
+      finalizedDeliveries: 0,
+      pendingDeliveryPay: new Prisma.Decimal(0),
+      pendingMoney: new Prisma.Decimal(0)
     };
   }
 
@@ -686,6 +689,13 @@ export class ReportUseCases {
           { messengerId: actor.id }
         ]
       })
+    };
+  }
+
+  private reconciliationSalesWhere(actor: AuthenticatedUser, input: CreateCashClosureInput): Prisma.SaleWhereInput {
+    return {
+      ...this.closableSalesWhere(actor, input),
+      status: { in: ['FINALIZED', 'CANCELLED', 'DELIVERY_PENDING'] }
     };
   }
 
