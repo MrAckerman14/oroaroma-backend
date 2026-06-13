@@ -177,7 +177,7 @@ export class UserUseCases {
       const roleKeys = user.roleAssignments.map((assignment) => assignment.role.key);
       const roleNames = user.roleAssignments.map((assignment) => assignment.role.name);
       const messengerStats = roleKeys.includes('messenger')
-        ? await this.messengerStats(user.id, createdAt, actor)
+        ? await this.messengerStats(user.id, createdAt)
         : this.emptyMessengerStats();
 
       return {
