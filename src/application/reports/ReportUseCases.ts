@@ -244,7 +244,7 @@ export class ReportUseCases {
         if (sale.sellerId) {
           acc.generalSale = acc.generalSale.plus(saleProductTotal);
         } else {
-          acc.internalSale = acc.internalSale.plus(saleProductTotal);
+          acc.internalSale = acc.internalSale.plus(sale.amount);
         }
       }
 
@@ -301,10 +301,10 @@ export class ReportUseCases {
         employee.quantity += sale.perfumeCount;
         employee.shippingCost = employee.shippingCost.plus(sale.deliveryPay);
         if (!sale.sellerId) {
-          employee.internalSale = employee.internalSale.plus(saleProductTotal);
+          employee.internalSale = employee.internalSale.plus(sale.amount);
           employee.internalSales = employee.internalSale;
-          employee.total = employee.total.plus(saleProductTotal);
-          employee.totalSold = employee.totalSold.plus(saleProductTotal);
+          employee.total = employee.total.plus(sale.amount);
+          employee.totalSold = employee.totalSold.plus(sale.amount);
         } else {
           employee.total = employee.total.plus(saleProductTotal);
           employee.totalSold = employee.totalSold.plus(saleProductTotal);

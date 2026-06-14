@@ -434,7 +434,7 @@ export class UserUseCases {
       totals.deliveryPay = totals.deliveryPay.plus(sale.deliveryPay);
       totals.perfumes += sale.perfumeCount;
       if (!sale.sellerId) {
-        totals.internalSales = totals.internalSales.plus(saleProductTotal);
+        totals.internalSales = totals.internalSales.plus(sale.amount);
       } else {
         totals.productIncome = totals.productIncome.plus(saleProductTotal);
       }
