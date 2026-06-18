@@ -12,7 +12,7 @@ const envSchema = z.object({
   HOST: z.string().default('0.0.0.0'),
   NODE_ENV: z.enum(['development', 'test', 'production']).default('development'),
   JWT_SECRET: z.string().min(32, 'JWT_SECRET debe tener al menos 32 caracteres'),
-  JWT_EXPIRES_IN: z.string().default('15m'),
+  JWT_EXPIRES_IN: z.string().default('7d'),
   REFRESH_TOKEN_EXPIRES_DAYS: z.coerce.number().int().positive().default(30),
   CORS_ORIGINS: z.string().default('http://localhost:9000,http://localhost:9100'),
   BCRYPT_ROUNDS: z.coerce.number().int().min(8).max(15).default(12),
