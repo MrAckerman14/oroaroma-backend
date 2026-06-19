@@ -6,9 +6,8 @@ import fastifyStatic from '@fastify/static';
 import swagger from '@fastify/swagger';
 import swaggerUi from '@fastify/swagger-ui';
 import Fastify from 'fastify';
-import path from 'node:path';
-import { fileURLToPath } from 'node:url';
-import { corsOrigins, env } from '../../config/env.js';
+import { corsOrigins, env, uploadPublicBasePath } from '../../config/env.js';
+import { resolveUploadRoot } from '../../infrastructure/storage/storageFactory.js';
 import { authPlugin } from './plugins/authPlugin.js';
 import { registerAuditHook } from './plugins/auditPlugin.js';
 import { containerPlugin } from './plugins/containerPlugin.js';
@@ -17,9 +16,6 @@ import { registerErrorHandler } from './plugins/errorHandler.js';
 import { registerRoutes } from './routes/index.js';
 
 export async function buildApp() {
-  const dirname = path.dirname(fileURLToPath(import.meta.url));
-  const uploadRoot = path.resolve(dirname, '../../../uploads');
-
   const app = Fastify({
     logger: env.NODE_ENV === 'development'
       ? { transport: { target: 'pino-pretty' } }
@@ -47,10 +43,12 @@ export async function buildApp() {
       files: 1
     }
   });
-  await app.register(fastifyStatic, {
-    root: uploadRoot,
-    prefix: '/uploads/'
-  });
+  if (env.STORAGE_DRIVER === 'local') {
+    await app.register(fastifyStatic, {
+      root: resolveUploadRoot(),
+      prefix: `${uploadPublicBasePath.replace(/\/$/, '')}/`
+    });
+  }
   await app.register(swagger, {
     openapi: {
       info: {

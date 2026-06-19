@@ -54,3 +54,37 @@ Los permisos se modelan como `resource + action + scope`, por ejemplo:
 - `users:update:global`
 
 El usuario recibe roles por alcance (`global`, `store`, `own`) mediante `UserRoleAssignment`. El motor de autorización evalua permisos y contexto, no roles hardcodeados.
+
+## Imagenes en produccion
+
+El backend guarda las imagenes de productos mediante el puerto `StorageService`.
+Por defecto usa almacenamiento local (`STORAGE_DRIVER=local`) y sirve los archivos desde `/uploads`.
+
+En Render debes crear un Persistent Disk para que las imagenes no se pierdan en cada redeploy:
+
+- Mount path recomendado: `/var/data/uploads`
+- Variable de entorno: `UPLOAD_ROOT=/var/data/uploads`
+- Variable de entorno: `UPLOAD_PUBLIC_BASE_PATH=/uploads`
+- Variable de entorno: `STORAGE_DRIVER=local`
+
+Con esa configuracion, las rutas guardadas en base de datos siguen siendo como:
+
+```txt
+/uploads/products/archivo.webp
+```
+
+y los archivos reales quedan en el disco persistente.
+
+Para una migracion futura a S3, Cloudflare R2 o almacenamiento compatible, ya existen estas variables reservadas:
+
+```env
+STORAGE_DRIVER=r2
+OBJECT_STORAGE_ENDPOINT=
+OBJECT_STORAGE_REGION=
+OBJECT_STORAGE_BUCKET=
+OBJECT_STORAGE_ACCESS_KEY_ID=
+OBJECT_STORAGE_SECRET_ACCESS_KEY=
+OBJECT_STORAGE_PUBLIC_BASE_URL=
+```
+
+Todavia falta implementar el proveedor de objetos. Hasta entonces, en produccion usa `STORAGE_DRIVER=local`.

@@ -23,8 +23,17 @@ const envSchema = z.object({
   BUSINESS_DAY_START_HOUR: z.coerce.number().int().min(0).max(23).default(7),
   DEFAULT_PAGE_SIZE: z.coerce.number().int().positive().max(500).default(50),
   MAX_PAGE_SIZE: z.coerce.number().int().positive().max(1000).default(200),
+  STORAGE_DRIVER: z.enum(['local', 's3', 'r2']).default('local'),
+  UPLOAD_ROOT: z.string().min(1).default('uploads'),
+  UPLOAD_PUBLIC_BASE_PATH: z.string().min(1).default('/uploads'),
   UPLOAD_MAX_IMAGE_SIZE_MB: z.coerce.number().positive().max(50).default(5),
   UPLOAD_ALLOWED_IMAGE_MIME_TYPES: z.string().default('image/jpeg:.jpg,image/png:.png,image/webp:.webp,image/avif:.avif'),
+  OBJECT_STORAGE_ENDPOINT: z.string().optional(),
+  OBJECT_STORAGE_REGION: z.string().optional(),
+  OBJECT_STORAGE_BUCKET: z.string().optional(),
+  OBJECT_STORAGE_ACCESS_KEY_ID: z.string().optional(),
+  OBJECT_STORAGE_SECRET_ACCESS_KEY: z.string().optional(),
+  OBJECT_STORAGE_PUBLIC_BASE_URL: z.string().optional(),
   CURRENCY_CODE: z.string().min(3).max(3).default('DOP'),
   CURRENCY_COUNTRY: z.string().min(2).max(2).default('DO'),
   CURRENCY_SYMBOL: z.string().min(1).default('RD$'),
@@ -36,6 +45,10 @@ const envSchema = z.object({
 });
 
 export const env = envSchema.parse(process.env);
+
+export const uploadPublicBasePath = env.UPLOAD_PUBLIC_BASE_PATH.startsWith('/')
+  ? env.UPLOAD_PUBLIC_BASE_PATH
+  : `/${env.UPLOAD_PUBLIC_BASE_PATH}`;
 
 export const corsOrigins = env.CORS_ORIGINS.split(',')
   .map((origin) => origin.trim())
