@@ -6,8 +6,8 @@ import fastifyStatic from '@fastify/static';
 import swagger from '@fastify/swagger';
 import swaggerUi from '@fastify/swagger-ui';
 import Fastify from 'fastify';
-import { corsOrigins, env, uploadPublicBasePath } from '../../config/env.js';
-import { resolveUploadRoot } from '../../infrastructure/storage/storageFactory.js';
+import { corsOrigins, env, normalizedUploadPublicBasePath } from '../../config/env.js';
+import { ensureLocalUploadRoot, resolveUploadRoot } from '../../infrastructure/storage/storageFactory.js';
 import { authPlugin } from './plugins/authPlugin.js';
 import { registerAuditHook } from './plugins/auditPlugin.js';
 import { containerPlugin } from './plugins/containerPlugin.js';
@@ -44,9 +44,10 @@ export async function buildApp() {
     }
   });
   if (env.STORAGE_DRIVER === 'local') {
+    await ensureLocalUploadRoot();
     await app.register(fastifyStatic, {
       root: resolveUploadRoot(),
-      prefix: `${uploadPublicBasePath.replace(/\/$/, '')}/`
+      prefix: `${normalizedUploadPublicBasePath}/`
     });
   }
   await app.register(swagger, {

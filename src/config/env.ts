@@ -50,6 +50,8 @@ export const uploadPublicBasePath = env.UPLOAD_PUBLIC_BASE_PATH.startsWith('/')
   ? env.UPLOAD_PUBLIC_BASE_PATH
   : `/${env.UPLOAD_PUBLIC_BASE_PATH}`;
 
+export const normalizedUploadPublicBasePath = uploadPublicBasePath.replace(/\/+$/, '') || '/uploads';
+
 export const corsOrigins = env.CORS_ORIGINS.split(',')
   .map((origin) => origin.trim())
   .filter(Boolean);
