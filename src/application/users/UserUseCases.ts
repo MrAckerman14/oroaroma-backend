@@ -414,24 +414,34 @@ export class UserUseCases {
     rangeDays: number,
     _userName: string
   ) {
-    const sales = await this.prisma.sale.findMany({
-      where: {
-        ...where,
-        status: 'FINALIZED',
-        deletedAt: null,
-        ...(createdAt ? { createdAt } : {})
-      },
-      include: {
-        details: { select: { quantity: true, unitPrice: true } }
-      }
-    });
+    const [sales, shipping] = await Promise.all([
+      this.prisma.sale.findMany({
+        where: {
+          ...where,
+          status: 'FINALIZED',
+          deletedAt: null,
+          ...(createdAt ? { createdAt } : {})
+        },
+        include: {
+          details: { select: { quantity: true, unitPrice: true } }
+        }
+      }),
+      this.prisma.sale.aggregate({
+        where: {
+          ...where,
+          status: { in: ['FINALIZED', 'CANCELLED'] },
+          deletedAt: null,
+          ...(createdAt ? { createdAt } : {})
+        },
+        _sum: { deliveryPay: true }
+      })
+    ]);
 
     const stats = sales.reduce((totals, sale) => {
       const saleProductTotal = this.saleProductIncome(sale.details);
       totals.orders += 1;
       totals.cash = totals.cash.plus(sale.amountCash);
       totals.transfer = totals.transfer.plus(sale.amountTransfer);
-      totals.deliveryPay = totals.deliveryPay.plus(sale.deliveryPay);
       totals.perfumes += sale.perfumeCount;
       if (!sale.sellerId) {
         totals.internalSales = totals.internalSales.plus(sale.amount);
@@ -443,11 +453,11 @@ export class UserUseCases {
       orders: 0,
       cash: new Prisma.Decimal(0),
       transfer: new Prisma.Decimal(0),
-      deliveryPay: new Prisma.Decimal(0),
       perfumes: 0,
       productIncome: new Prisma.Decimal(0),
       internalSales: new Prisma.Decimal(0)
     });
+    const deliveryPay = shipping._sum.deliveryPay ?? new Prisma.Decimal(0);
     const totalSold = stats.internalSales.plus(stats.productIncome);
     const average = rangeDays > 0 ? totalSold.div(rangeDays) : new Prisma.Decimal(0);
 
@@ -456,7 +466,7 @@ export class UserUseCases {
       total: totalSold,
       cash: stats.cash,
       transfer: stats.transfer,
-      deliveryPay: stats.deliveryPay,
+      deliveryPay,
       perfumes: stats.perfumes,
       productIncome: stats.productIncome,
       perfumeIncome: stats.productIncome,
@@ -464,7 +474,7 @@ export class UserUseCases {
       internalSales: stats.internalSales,
       average,
       bonus: this.employeeBonus(average),
-      net: stats.cash.minus(stats.deliveryPay)
+      net: stats.cash.minus(deliveryPay)
     };
   }
 
@@ -478,7 +488,7 @@ export class UserUseCases {
           ...(createdAt ? { createdAt } : {})
         },
         include: {
-          details: { select: { quantity: true, unitPrice: true, purchaseUnitPrice: true } }
+          details: { select: { quantity: true, unitPrice: true } }
         }
       }),
       this.prisma.sale.aggregate({
@@ -499,7 +509,7 @@ export class UserUseCases {
       totals.transfer = totals.transfer.plus(sale.amountTransfer);
       totals.perfumes += sale.perfumeCount;
       totals.productIncome = totals.productIncome.plus(this.saleProductIncome(sale.details));
-      totals.perfumeCost = totals.perfumeCost.plus(this.saleProductCost(sale.details));
+      totals.perfumeCost = totals.perfumeCost.plus(this.saleProductIncome(sale.details));
       return totals;
     }, {
       orders: 0,
@@ -610,12 +620,6 @@ export class UserUseCases {
   private saleProductIncome(details: Array<{ quantity: number; unitPrice: Prisma.Decimal }>) {
     return details.reduce((total, detail) => {
       return total.plus(detail.unitPrice.mul(detail.quantity));
-    }, new Prisma.Decimal(0));
-  }
-
-  private saleProductCost(details: Array<{ quantity: number; purchaseUnitPrice: Prisma.Decimal }>) {
-    return details.reduce((total, detail) => {
-      return total.plus(detail.purchaseUnitPrice.mul(detail.quantity));
     }, new Prisma.Decimal(0));
   }
 

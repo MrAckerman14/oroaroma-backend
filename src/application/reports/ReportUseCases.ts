@@ -315,7 +315,7 @@ export class ReportUseCases {
 
         if (sale.sellerId && sale.seller) {
           const seller = sellerRows.get(sale.sellerId) ?? this.emptySellerSummary(sale.sellerId, sale.seller);
-          const perfumeCost = this.salePerfumeCost(sale.details);
+          const perfumeCost = this.saleProductSaleTotal(sale.details);
           seller._sum.amount = seller._sum.amount.plus(sale.amount);
           seller._sum.deliveryPay = seller._sum.deliveryPay.plus(sale.deliveryPay);
           seller._sum.perfumeCount += sale.perfumeCount;
@@ -325,6 +325,25 @@ export class ReportUseCases {
           seller.finalizedDeliveries += 1;
           seller.quantity += sale.perfumeCount;
           seller.perfumeCost = seller.perfumeCost.plus(perfumeCost);
+          seller.amountToPay = seller.totalSold.minus(seller.shippingCost).minus(seller.perfumeCost);
+          sellerRows.set(sale.sellerId, seller);
+        }
+      }
+
+      if (sale.status === 'CANCELLED') {
+        if (sale.employeeId && sale.employee) {
+          const employee = employeeRows.get(sale.employeeId) ?? this.emptyEmployeeSummary(sale.employeeId, sale.employee);
+          employee._sum.deliveryPay = employee._sum.deliveryPay.plus(sale.deliveryPay);
+          employee.shippingCost = employee.shippingCost.plus(sale.deliveryPay);
+          employee.net = employee.cash.minus(employee.shippingCost);
+          employee.netCash = employee.net;
+          employeeRows.set(sale.employeeId, employee);
+        }
+
+        if (sale.sellerId && sale.seller) {
+          const seller = sellerRows.get(sale.sellerId) ?? this.emptySellerSummary(sale.sellerId, sale.seller);
+          seller._sum.deliveryPay = seller._sum.deliveryPay.plus(sale.deliveryPay);
+          seller.shippingCost = seller.shippingCost.plus(sale.deliveryPay);
           seller.amountToPay = seller.totalSold.minus(seller.shippingCost).minus(seller.perfumeCost);
           sellerRows.set(sale.sellerId, seller);
         }
@@ -407,12 +426,6 @@ export class ReportUseCases {
       perfumeCost: new Prisma.Decimal(0),
       amountToPay: new Prisma.Decimal(0)
     };
-  }
-
-  private salePerfumeCost(details: Array<{ quantity: number; purchaseUnitPrice: Prisma.Decimal }>) {
-    return details.reduce((total, detail) => {
-      return total.plus(detail.purchaseUnitPrice.mul(detail.quantity));
-    }, new Prisma.Decimal(0));
   }
 
   private saleProductSaleTotal(details: Array<{ quantity: number; unitPrice: Prisma.Decimal }>) {
