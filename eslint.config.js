@@ -3,7 +3,18 @@ import tseslint from 'typescript-eslint';
 
 export default tseslint.config(
   {
-    ignores: ['dist/**', 'node_modules/**', 'coverage/**', 'eslint.config.js', 'prisma/seed.ts', 'scripts/**', 'test/**']
+    ignores: [
+      'dist/**',
+      'node_modules/**',
+      'coverage/**',
+      'eslint.config.js',
+      'vitest.config.ts',
+      'prisma/seed.ts',
+      'scripts/**',
+      'test/**',
+      '**/*.test.ts',
+      'oroaroma-admin-frontend/**'
+    ]
   },
   js.configs.recommended,
   ...tseslint.configs.recommendedTypeChecked,

@@ -255,7 +255,7 @@ export class UserUseCases {
       const roleKeys = user.roleAssignments.map((assignment) => assignment.role.key);
       const roleNames = user.roleAssignments.map((assignment) => this.roleDisplayName(assignment.role.key, assignment.role.name));
       const [employeeStats, messengerStats, sellerStats] = await Promise.all([
-        this.salesStats({ employeeId: user.id }, createdAt, rangeDays, user.name),
+        this.salesStats({ employeeId: user.id }, createdAt, rangeDays),
         this.messengerStats(user.id, createdAt),
         this.sellerStats(user.id, createdAt)
       ]);
@@ -460,8 +460,7 @@ export class UserUseCases {
   private async salesStats(
     where: { employeeId?: string; sellerId?: string },
     createdAt: ReturnType<typeof buildCreatedAtFilter>,
-    rangeDays: number,
-    _userName: string
+    rangeDays: number
   ) {
     const [sales, shipping] = await Promise.all([
       this.prisma.sale.findMany({

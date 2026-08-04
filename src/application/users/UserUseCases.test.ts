@@ -86,6 +86,63 @@ describe('UserUseCases listOptions', () => {
       }
     });
     expect(result.items.map((item) => item.roleKey)).toEqual(['seller', 'messenger']);
+    expect(result.items.map((item) => item.email)).toEqual([null, null]);
+  });
+
+  it('permite al vendedor ver colaboradores y mensajeros para crear ventas', async () => {
+    const actor: AuthenticatedUser = {
+      id: 'employee-1',
+      email: 'employee@oroaroma.local',
+      name: 'Vendedor',
+      status: 'ACTIVE',
+      statusLabel: 'Activo',
+      roles: [{ roleKey: 'employee', scope: 'own' }],
+      permissions: []
+    };
+    const calls: { findMany?: unknown } = {};
+    const prisma = {
+      user: {
+        findMany: async (args: unknown) => {
+          calls.findMany = args;
+          return [
+            userOption('seller-1', 'Colaborador', 'seller'),
+            userOption('messenger-1', 'Mensajero', 'messenger')
+          ];
+        },
+        count: async () => 2
+      },
+      sale: {
+        aggregate: async () => ({
+          _count: { id: 0 },
+          _sum: {
+            amountCash: new Prisma.Decimal(0),
+            deliveryPay: new Prisma.Decimal(0)
+          }
+        })
+      }
+    };
+    const users = new UserUseCases(prisma as unknown as PrismaClient, {} as PasswordHasher);
+
+    const result = await users.listOptions({ page: 1, pageSize: 100 }, actor);
+
+    expect(calls.findMany).toMatchObject({
+      where: {
+        deletedAt: null,
+        status: 'ACTIVE',
+        OR: [
+          {
+            roleAssignments: {
+              some: {
+                role: {
+                  key: { in: ['seller', 'messenger'] }
+                }
+              }
+            }
+          }
+        ]
+      }
+    });
+    expect(result.items.map((item) => item.roleKey)).toEqual(['seller', 'messenger']);
   });
 });
 

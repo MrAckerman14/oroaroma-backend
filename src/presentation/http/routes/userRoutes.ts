@@ -20,7 +20,7 @@ export async function userRoutes(app: FastifyInstance) {
     { preHandler: [app.authenticate] },
     async (request) => {
       const query = dateRangePaginationQuerySchema.parse(request.query);
-      return { data: await users.listOptions(query, request.authUser!) };
+      return { data: await users.listOptions(query, request.authUser) };
     }
   );
 
