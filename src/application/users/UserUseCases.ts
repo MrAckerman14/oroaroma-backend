@@ -149,19 +149,25 @@ export class UserUseCases {
     const createdAt = buildCreatedAtFilter(range);
     const visibleRoleKeys = this.visibleOptionRoleKeys(actor);
     const isAdmin = this.hasAnyRole(actor, ['admin']);
+    const isSeller = this.hasAnyRole(actor, ['seller']);
     const where = {
       deletedAt: null,
       status: 'ACTIVE' as const,
       ...(!isAdmin ? {
-        roleAssignments: {
-          some: {
-            role: {
-              key: {
-                in: visibleRoleKeys
+        OR: [
+          {
+            roleAssignments: {
+              some: {
+                role: {
+                  key: {
+                    in: visibleRoleKeys
+                  }
+                }
               }
             }
-          }
-        }
+          },
+          ...(isSeller && actor?.id ? [{ id: actor.id }] : [])
+        ]
       } : {})
     };
     const [items, total] = await Promise.all([
