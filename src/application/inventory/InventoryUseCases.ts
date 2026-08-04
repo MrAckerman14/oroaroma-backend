@@ -1,11 +1,13 @@
 import { Prisma, type PrismaClient } from '@prisma/client';
-import { NotFoundError } from '../../shared/errors/AppError.js';
+import { ForbiddenError, NotFoundError } from '../../shared/errors/AppError.js';
 import { buildCreatedAtFilter, currentCalendarDayRange, dateRangeOrCurrentDay, parseDateRange } from '../../shared/utils/dateRange.js';
 import type { AuthenticatedUser } from '../../types/rbac.js';
 
 export interface InventoryRangeInput {
   from?: string | undefined;
   to?: string | undefined;
+  name?: string | undefined;
+  note?: string | null | undefined;
 }
 
 export interface PaginatedInventoryRangeInput extends InventoryRangeInput {
@@ -76,6 +78,8 @@ export class InventoryUseCases {
       data: {
         fromDate: from,
         toDate: to,
+        name: input.name?.trim() || `Reporte de inventario ${this.formatDateOnly(new Date())}`,
+        note: input.note?.trim() || null,
         createdById: actor.id,
         totalProducts: snapshot.totals.totalProducts,
         totalInventoryValue: snapshot.totals.totalInventoryValue,
@@ -102,13 +106,14 @@ export class InventoryUseCases {
   async list(actor: AuthenticatedUser, input: PaginatedInventoryRangeInput) {
     const range = dateRangeOrCurrentDay(input);
     const createdAt = buildCreatedAtFilter(range);
-    const canGlobal = actor.permissions.some((permission) => {
-      return permission.key === 'inventory-reports:read:global';
-    });
+    const canGlobal = this.canReadGlobalInventoryReports(actor);
+    if (!canGlobal) {
+      throw new ForbiddenError('Permiso requerido para leer reportes de inventario');
+    }
+
     const where = {
       deletedAt: null,
-      ...(createdAt ? { createdAt } : {}),
-      ...(canGlobal ? {} : { createdById: actor.id })
+      ...(createdAt ? { createdAt } : {})
     };
 
     const [items, total] = await Promise.all([
@@ -129,13 +134,13 @@ export class InventoryUseCases {
   }
 
   async detail(id: string, actor: AuthenticatedUser, input: InventoryDetailInput) {
-    const canGlobal = actor.permissions.some((permission) => {
-      return permission.key === 'inventory-reports:read:global';
-    });
+    const canGlobal = this.canReadGlobalInventoryReports(actor);
+    if (!canGlobal) {
+      throw new ForbiddenError('Permiso requerido para leer reportes de inventario');
+    }
     const where = {
       id,
-      deletedAt: null,
-      ...(canGlobal ? {} : { createdById: actor.id })
+      deletedAt: null
     };
     const [report, details, totalDetails] = await Promise.all([
       this.prisma.inventoryReport.findFirst({
@@ -177,6 +182,25 @@ export class InventoryUseCases {
       where: { id },
       data: { deletedAt: new Date() }
     });
+  }
+
+  async update(id: string, input: { name?: string | undefined; note?: string | null | undefined }) {
+    const report = await this.prisma.inventoryReport.findFirst({
+      where: { id, deletedAt: null }
+    });
+    if (!report) throw new NotFoundError('Reporte de inventario no encontrado');
+
+    return this.prisma.inventoryReport.update({
+      where: { id },
+      data: {
+        ...(input.name !== undefined ? { name: input.name.trim() } : {}),
+        ...(input.note !== undefined ? { note: input.note?.trim() || null } : {})
+      },
+      include: {
+        creator: { select: { id: true, name: true } },
+        _count: { select: { details: true } }
+      }
+    }).then((report) => this.presentReport(report));
   }
 
   private presentReport<T extends {
@@ -227,15 +251,20 @@ export class InventoryUseCases {
     };
   }
 
+  private formatDateOnly(date: Date) {
+    return date.toISOString().slice(0, 10);
+  }
+
   async legacyDetail(id: string, actor: AuthenticatedUser) {
-    const canGlobal = actor.permissions.some((permission) => {
-      return permission.key === 'inventory-reports:read:global';
-    });
+    const canGlobal = this.canReadGlobalInventoryReports(actor);
+    if (!canGlobal) {
+      throw new ForbiddenError('Permiso requerido para leer reportes de inventario');
+    }
+
     const report = await this.prisma.inventoryReport.findFirst({
       where: {
         id,
-        deletedAt: null,
-        ...(canGlobal ? {} : { createdById: actor.id })
+        deletedAt: null
       },
       include: {
         creator: { select: { id: true, name: true } },
@@ -246,7 +275,19 @@ export class InventoryUseCases {
     });
 
     if (!report) throw new NotFoundError('Reporte de inventario no encontrado');
-    return report;
+    return this.presentReport({
+      ...report,
+      details: report.details.map((detail) => this.presentDetail(detail)),
+      detailItems: report.details.map((detail) => this.presentDetail(detail)),
+      summary: this.reportSummary(report),
+      generalSummary: this.reportSummary(report)
+    });
+  }
+
+  private canReadGlobalInventoryReports(actor: AuthenticatedUser) {
+    return actor.permissions.some((permission) => {
+      return permission.key === 'inventory-reports:read:global';
+    });
   }
 
   private paginated<T>(items: T[], total: number, pagination: { page: number; pageSize: number }) {

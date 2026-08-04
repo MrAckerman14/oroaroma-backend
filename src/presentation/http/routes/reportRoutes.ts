@@ -6,7 +6,7 @@ import {
   idParamsSchema,
   paginationQuerySchema
 } from '../schemas/commonSchemas.js';
-import { closureStatusSchema, createCashClosureSchema } from '../schemas/reportSchemas.js';
+import { closureStatusSchema, createCashClosureSchema, updateCashClosureSchema } from '../schemas/reportSchemas.js';
 
 export async function reportRoutes(app: FastifyInstance) {
   const reports = new ReportUseCases(app.container.prisma);
@@ -57,6 +57,16 @@ export async function reportRoutes(app: FastifyInstance) {
       const params = idParamsSchema.parse(request.params);
       const query = paginationQuerySchema.parse(request.query);
       return { data: await reports.closureDetails(request.authUser!, params.id, query) };
+    }
+  );
+
+  app.put(
+    '/cash-closures/:id',
+    { preHandler: [app.authenticate, app.authorize('cash-closures', 'verify')] },
+    async (request) => {
+      const params = idParamsSchema.parse(request.params);
+      const input = updateCashClosureSchema.parse(request.body);
+      return { data: await reports.updateClosure(params.id, input) };
     }
   );
 

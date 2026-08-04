@@ -12,6 +12,8 @@ export interface DateRangeInput {
 
 export interface CreateCashClosureInput extends DateRangeInput {
   saleIds?: string[] | undefined;
+  name?: string | undefined;
+  note?: string | null | undefined;
 }
 
 export interface PaginatedDateRangeInput extends DateRangeInput {
@@ -26,6 +28,8 @@ export interface ClosureDetailsInput {
 
 type CashClosureForPresentation = {
   id: string;
+  name: string;
+  note: string | null;
   createdById: string;
   fromDate: Date;
   toDate: Date;
@@ -36,6 +40,7 @@ type CashClosureForPresentation = {
   netTotal: Prisma.Decimal;
   totalPerfumes: number;
   pendingMoney: Prisma.Decimal;
+  pendingCash: Prisma.Decimal;
   pendingMessengerPay: Prisma.Decimal;
   internalSale: Prisma.Decimal;
   generalSale: Prisma.Decimal;
@@ -71,7 +76,7 @@ export class ReportUseCases {
         employee: { select: { id: true, name: true, email: true } },
         messenger: { select: { id: true, name: true, email: true } },
         seller: { select: { id: true, name: true, email: true } },
-        details: { select: { quantity: true, purchaseUnitPrice: true, unitPrice: true } }
+        details: { select: { quantity: true, unitPrice: true } }
       }
     });
 
@@ -109,9 +114,12 @@ export class ReportUseCases {
 
         const totals = this.cashClosureTotals(sales);
         const pendingTotals = await this.pendingTotalsForClosure(tx, actor, { from, to });
+        const name = input.name?.trim() || this.defaultClosureName(from, to);
 
         return tx.cashClosure.create({
           data: {
+            name,
+            note: input.note?.trim() || null,
             createdById: actor.id,
             fromDate: from,
             toDate: to,
@@ -122,6 +130,7 @@ export class ReportUseCases {
             netTotal: totals.totalCash.minus(totals.totalMessengerCost),
             totalPerfumes: totals.totalPerfumes,
             pendingMoney: pendingTotals.pendingMoney,
+            pendingCash: pendingTotals.pendingCash,
             pendingMessengerPay: pendingTotals.pendingMessengerPay,
             internalSale: totals.internalSale,
             generalSale: totals.generalSale,
@@ -252,12 +261,17 @@ export class ReportUseCases {
         acc.totalMessengerCost = acc.totalMessengerCost.plus(sale.deliveryPay);
       }
 
+      if (sale.status === 'DELIVERY_PENDING') {
+        acc.pendingCash = acc.pendingCash.plus(sale.amountCash);
+      }
+
       return acc;
     }, {
       totalSale: new Prisma.Decimal(0),
       totalCash: new Prisma.Decimal(0),
       totalTransfer: new Prisma.Decimal(0),
       totalMessengerCost: new Prisma.Decimal(0),
+      pendingCash: new Prisma.Decimal(0),
       internalSale: new Prisma.Decimal(0),
       generalSale: new Prisma.Decimal(0),
       totalPerfumes: 0,
@@ -278,7 +292,7 @@ export class ReportUseCases {
     employee: { id: string; name: string; email: string };
     messenger: { id: string; name: string; email: string } | null;
     seller: { id: string; name: string; email: string } | null;
-    details: Array<{ quantity: number; purchaseUnitPrice: Prisma.Decimal; unitPrice: Prisma.Decimal }>;
+    details: Array<{ quantity: number; unitPrice: Prisma.Decimal }>;
   }>) {
     const totals = this.cashClosureTotals(sales);
     const employeeRows = new Map<string, ReturnType<typeof this.emptyEmployeeSummary>>();
@@ -356,6 +370,10 @@ export class ReportUseCases {
           messenger._sum.deliveryPay = messenger._sum.deliveryPay.plus(sale.deliveryPay);
           messenger._count.id += 1;
           messenger.finalizedDeliveries += 1;
+          messenger.completedDeliveryPay = messenger.completedDeliveryPay.plus(sale.deliveryPay);
+          messenger.earnedMoney = messenger.completedDeliveryPay;
+          messenger.messengerEarnings = messenger.completedDeliveryPay;
+          messenger.totalEarned = messenger.completedDeliveryPay;
         }
 
         if (sale.status === 'DELIVERY_PENDING') {
@@ -375,6 +393,10 @@ export class ReportUseCases {
       netTotal: totals.totalCash.minus(totals.totalMessengerCost),
       totalPerfumes: totals.totalPerfumes,
       ordersCount: totals.ordersCount,
+      pendingCash: totals.pendingCash,
+      pendingCashTotal: totals.pendingCash,
+      totalPendingCash: totals.pendingCash,
+      pendingCashAmount: totals.pendingCash,
       detailEmployee: this.canViewCashDetail(actor, 'employees') ? [...employeeRows.values()] : [],
       detailSeller: this.canViewCashDetail(actor, 'sellers') ? [...sellerRows.values()] : [],
       detailMessenger: this.canViewCashDetail(actor, 'messengers')
@@ -383,10 +405,10 @@ export class ReportUseCases {
     };
   }
 
-  private emptyEmployeeSummary(employeeId: string, employee: { id: string; name: string; email: string }) {
+  private emptyEmployeeSummary(employeeId: string, employee: { id: string; name: string; email?: string }) {
     return {
       employeeId,
-      employee,
+      employee: this.publicPerson(employee),
       _sum: {
         amount: new Prisma.Decimal(0),
         amountCash: new Prisma.Decimal(0),
@@ -409,10 +431,10 @@ export class ReportUseCases {
     };
   }
 
-  private emptySellerSummary(sellerId: string, seller: { id: string; name: string; email: string }) {
+  private emptySellerSummary(sellerId: string, seller: { id: string; name: string; email?: string }) {
     return {
       sellerId,
-      seller,
+      seller: this.publicPerson(seller),
       _sum: {
         amount: new Prisma.Decimal(0),
         deliveryPay: new Prisma.Decimal(0),
@@ -434,18 +456,29 @@ export class ReportUseCases {
     }, new Prisma.Decimal(0));
   }
 
-  private emptyMessengerSummary(messengerId: string, messenger: { id: string; name: string; email: string }) {
+  private emptyMessengerSummary(messengerId: string, messenger: { id: string; name: string; email?: string }) {
     return {
       messengerId,
-      messenger,
+      messenger: this.publicPerson(messenger),
       _sum: {
         amountCash: new Prisma.Decimal(0),
         deliveryPay: new Prisma.Decimal(0)
       },
       _count: { id: 0 },
       finalizedDeliveries: 0,
+      completedDeliveryPay: new Prisma.Decimal(0),
+      earnedMoney: new Prisma.Decimal(0),
+      messengerEarnings: new Prisma.Decimal(0),
+      totalEarned: new Prisma.Decimal(0),
       pendingDeliveryPay: new Prisma.Decimal(0),
       pendingMoney: new Prisma.Decimal(0)
+    };
+  }
+
+  private publicPerson(person: { id: string; name: string }) {
+    return {
+      id: person.id,
+      name: person.name
     };
   }
 
@@ -497,8 +530,7 @@ export class ReportUseCases {
             include: {
               employee: { select: { id: true, name: true } },
               messenger: { select: { id: true, name: true } },
-              seller: { select: { id: true, name: true } },
-              details: { include: { store: true } }
+              seller: { select: { id: true, name: true } }
             }
           }
         },
@@ -514,7 +546,7 @@ export class ReportUseCases {
               employee: { select: { id: true, name: true, email: true } },
               messenger: { select: { id: true, name: true, email: true } },
               seller: { select: { id: true, name: true, email: true } },
-              details: { select: { quantity: true, purchaseUnitPrice: true, unitPrice: true } }
+              details: { select: { quantity: true, unitPrice: true } }
             }
           }
         }
@@ -529,7 +561,9 @@ export class ReportUseCases {
       detailSeller: closureSummary.detailSeller,
       detailEmployee: closureSummary.detailEmployee,
       details: details.map((detail) => ({
-        ...detail,
+        id: detail.id,
+        closureId: detail.closureId,
+        saleId: detail.saleId,
         order: this.presentClosureSale(detail.sale)
       })),
       orderDetails: {
@@ -547,6 +581,20 @@ export class ReportUseCases {
     return this.prisma.cashClosure.update({
       where: { id },
       data: { status },
+      include: { creator: this.creatorInclude() }
+    }).then((closure) => this.presentCashClosure(closure));
+  }
+
+  async updateClosure(id: string, input: { name?: string | undefined; note?: string | null | undefined }) {
+    const closure = await this.prisma.cashClosure.findFirst({ where: { id, deletedAt: null } });
+    if (!closure) throw new NotFoundError('Cierre no encontrado');
+
+    return this.prisma.cashClosure.update({
+      where: { id },
+      data: {
+        ...(input.name !== undefined ? { name: input.name.trim() } : {}),
+        ...(input.note !== undefined ? { note: input.note?.trim() || null } : {})
+      },
       include: { creator: this.creatorInclude() }
     }).then((closure) => this.presentCashClosure(closure));
   }
@@ -581,6 +629,14 @@ export class ReportUseCases {
     } as const;
   }
 
+  private defaultClosureName(from: Date, to: Date) {
+    return `${this.formatDateOnly(from)} - ${this.formatDateOnly(to)}`;
+  }
+
+  private formatDateOnly(date: Date) {
+    return date.toISOString().slice(0, 10);
+  }
+
   private presentCashClosure<TClosure extends CashClosureForPresentation>(closure: TClosure) {
     const creatorRoles = closure.creator?.roleAssignments?.map((assignment) => assignment.role) ?? [];
 
@@ -596,6 +652,9 @@ export class ReportUseCases {
       pendingPayment: closure.pendingMessengerPay,
       pendingSalesMoney: closure.pendingMoney,
       pendingAmount: closure.pendingMoney,
+      pendingCashTotal: closure.pendingCash,
+      totalPendingCash: closure.pendingCash,
+      pendingCashAmount: closure.pendingCash,
       internalSales: closure.internalSale,
       generalSales: closure.generalSale,
       productCount: closure.totalPerfumes,
@@ -644,10 +703,12 @@ export class ReportUseCases {
 
     return pendingSales.reduce((totals, sale) => {
       totals.pendingMoney = totals.pendingMoney.plus(sale.amount);
+      totals.pendingCash = totals.pendingCash.plus(sale.amountCash);
       totals.pendingMessengerPay = totals.pendingMessengerPay.plus(sale.deliveryPay);
       return totals;
     }, {
       pendingMoney: new Prisma.Decimal(0),
+      pendingCash: new Prisma.Decimal(0),
       pendingMessengerPay: new Prisma.Decimal(0)
     });
   }
@@ -686,11 +747,15 @@ export class ReportUseCases {
   }
 
   private canViewCashDetail(actor: AuthenticatedUser, detail: 'messengers' | 'sellers' | 'employees') {
-    if (detail === 'messengers' && this.hasAnyRole(actor, ['admin', 'employee', 'seller', 'messenger'])) {
+    if (detail === 'messengers' && this.hasAnyRole(actor, ['admin', 'employee', 'supervisor', 'seller', 'messenger'])) {
       return true;
     }
 
-    if ((detail === 'sellers' || detail === 'employees') && !this.hasAnyRole(actor, ['admin'])) {
+    if (detail === 'sellers' && !this.hasAnyRole(actor, ['admin'])) {
+      return false;
+    }
+
+    if (detail === 'employees' && !this.hasAnyRole(actor, ['admin', 'supervisor'])) {
       return false;
     }
 

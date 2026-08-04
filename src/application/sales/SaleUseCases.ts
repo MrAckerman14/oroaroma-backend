@@ -22,6 +22,7 @@ export interface UpdateSaleInput {
   deliveryPay?: string | undefined;
   phone?: string | null | undefined;
   description?: string | null | undefined;
+  locationUrl?: string | null | undefined;
   status?: SaleStatus | undefined;
   items?: Array<{ productId: string; quantity: number }> | undefined;
 }
@@ -159,6 +160,7 @@ export class SaleUseCases {
           ...(input.deliveryPay ? { deliveryPay: new Prisma.Decimal(input.deliveryPay) } : {}),
           ...(input.phone !== undefined ? { phone: input.phone } : {}),
           ...(input.description !== undefined ? { description: input.description } : {}),
+          ...(input.locationUrl !== undefined ? { locationUrl: input.locationUrl?.trim() || null } : {}),
           ...(itemUpdate ? { perfumeCount: itemUpdate.perfumeCount } : {}),
           ...(input.status ? {
             status: input.status,
@@ -253,8 +255,19 @@ export class SaleUseCases {
       messenger: { select: { id: true, name: true } },
       seller: { select: { id: true, name: true } },
       details: {
-        include: {
-          store: true
+        select: {
+          id: true,
+          storeId: true,
+          quantity: true,
+          unitPrice: true,
+          store: {
+            select: {
+              id: true,
+              name: true,
+              description: true,
+              imagePath: true
+            }
+          }
         }
       }
     } as const;

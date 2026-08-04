@@ -1,17 +1,11 @@
 import { z } from 'zod';
-import { env } from '../../../config/env.js';
 
-export const createCashClosureSchema = z.object({
-  saleIds: z.array(z.uuid()).min(1).max(env.CASH_CLOSURE_MAX_SALES).optional(),
+export const createInventoryReportSchema = z.object({
   name: z.string().min(2).max(120).optional(),
   note: z.string().max(1000).nullable().optional()
 });
 
-export const closureStatusSchema = z.object({
-  status: z.enum(['PENDING', 'VERIFIED', 'VOIDED'])
-});
-
-export const updateCashClosureSchema = z.object({
+export const updateInventoryReportSchema = z.object({
   name: z.string().min(2).max(120).optional(),
   note: z.string().max(1000).nullable().optional()
 }).refine((value) => value.name !== undefined || value.note !== undefined, {

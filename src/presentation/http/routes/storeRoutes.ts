@@ -1,9 +1,14 @@
 import type { FastifyInstance, FastifyRequest } from 'fastify';
+import { readFile, stat } from 'node:fs/promises';
+import path from 'node:path';
 import { ForbiddenError, ValidationAppError } from '../../../shared/errors/AppError.js';
 import { StoreUseCases } from '../../../application/stores/StoreUseCases.js';
 import type { UploadFileInput } from '../../../application/files/StorageService.js';
-import { idParamsSchema, paginationQuerySchema } from '../schemas/commonSchemas.js';
-import { createStoreSchema, updateStoreSchema } from '../schemas/storeSchemas.js';
+import { normalizedUploadPublicBasePath } from '../../../config/env.js';
+import { resolveUploadRoot } from '../../../infrastructure/storage/storageFactory.js';
+import { buildZipArchive, type ZipFileInput } from '../../../shared/utils/zip.js';
+import { idParamsSchema } from '../schemas/commonSchemas.js';
+import { createStoreSchema, storeListQuerySchema, updateStoreSchema } from '../schemas/storeSchemas.js';
 
 export async function storeRoutes(app: FastifyInstance) {
   const stores = new StoreUseCases(app.container.prisma, app.container.storage);
@@ -12,8 +17,16 @@ export async function storeRoutes(app: FastifyInstance) {
     '/stores',
     { preHandler: [app.authenticate, canReadStores] },
     async (request) => {
-      const query = paginationQuerySchema.parse(request.query);
-      return { data: await stores.list(query) };
+      const query = storeListQuerySchema.parse(request.query);
+      return {
+        data: await stores.list(query, {
+          includeSensitivePrices: canReadSensitiveStorePrices(request.authUser!),
+          from: query.from,
+          to: query.to,
+          minStock: query.minStock,
+          maxStock: query.maxStock
+        })
+      };
     }
   );
 
@@ -28,11 +41,61 @@ export async function storeRoutes(app: FastifyInstance) {
   );
 
   app.get(
+    '/stores/images/download',
+    { preHandler: [app.authenticate, canReadStores] },
+    async (_request, reply) => {
+      const images = await stores.listImages();
+      const files: ZipFileInput[] = [];
+
+      for (const image of images) {
+        if (!image.imagePath) continue;
+        const absolutePath = publicUploadPathToAbsolutePath(image.imagePath);
+        const { data, metadata } = await readLocalUploadFile(absolutePath);
+
+        files.push({
+          name: uniqueZipName(files.map((file) => file.name), image.name, image.imagePath),
+          data,
+          modifiedAt: metadata.mtime
+        });
+      }
+
+      if (!files.length) {
+        throw new ValidationAppError('No hay imagenes de productos para descargar');
+      }
+
+      return reply
+        .header('Content-Type', 'application/zip')
+        .header('Content-Disposition', 'attachment; filename="imagenes-productos.zip"')
+        .send(buildZipArchive(files));
+    }
+  );
+
+  app.get(
+    '/stores/:id/image/download',
+    { preHandler: [app.authenticate, canReadStores] },
+    async (request, reply) => {
+      const params = idParamsSchema.parse(request.params);
+      const image = await stores.imageDownload(params.id);
+      const absolutePath = publicUploadPathToAbsolutePath(image.imagePath);
+      const { data, metadata } = await readLocalUploadFile(absolutePath);
+      const filename = downloadFilename(image.name, image.imagePath);
+
+      return reply
+        .header('Content-Type', contentTypeFromPath(image.imagePath))
+        .header('Content-Length', metadata.size)
+        .header('Content-Disposition', `attachment; filename="${filename}"`)
+        .send(data);
+    }
+  );
+
+  app.get(
     '/stores/:id',
     { preHandler: [app.authenticate, canReadStores] },
     async (request) => {
       const params = idParamsSchema.parse(request.params);
-      return { data: await stores.findById(params.id) };
+      return {
+        data: await stores.findById(params.id, canReadSensitiveStorePrices(request.authUser!))
+      };
     }
   );
 
@@ -93,9 +156,83 @@ export async function storeRoutes(app: FastifyInstance) {
   );
 }
 
+function publicUploadPathToAbsolutePath(publicPath: string) {
+  if (!publicPath.startsWith(`${normalizedUploadPublicBasePath}/`)) {
+    throw new ValidationAppError('La ruta de la imagen no pertenece al almacenamiento local');
+  }
+
+  const relativePath = publicPath.slice(`${normalizedUploadPublicBasePath}/`.length);
+  const uploadRoot = path.resolve(resolveUploadRoot());
+  const absolutePath = path.resolve(uploadRoot, relativePath);
+
+  if (!absolutePath.startsWith(`${uploadRoot}${path.sep}`) && absolutePath !== uploadRoot) {
+    throw new ValidationAppError('La ruta de la imagen no es valida');
+  }
+
+  return absolutePath;
+}
+
+async function readLocalUploadFile(absolutePath: string) {
+  try {
+    const [data, metadata] = await Promise.all([
+      readFile(absolutePath),
+      stat(absolutePath)
+    ]);
+    return { data, metadata };
+  } catch {
+    throw new ValidationAppError('La imagen no esta disponible en el almacenamiento');
+  }
+}
+
+function downloadFilename(name: string, imagePath: string) {
+  return `${safeFileName(name)}${path.extname(imagePath) || '.img'}`;
+}
+
+function uniqueZipName(existingNames: string[], name: string, imagePath: string) {
+  const baseName = safeFileName(name);
+  const extension = path.extname(imagePath) || '.img';
+  let candidate = `${baseName}${extension}`;
+  let index = 2;
+
+  while (existingNames.includes(candidate)) {
+    candidate = `${baseName}-${index}${extension}`;
+    index += 1;
+  }
+
+  return candidate;
+}
+
+function safeFileName(value: string) {
+  return value
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .replace(/[^a-zA-Z0-9._-]+/g, '-')
+    .replace(/^-+|-+$/g, '')
+    .slice(0, 80) || 'producto';
+}
+
+function contentTypeFromPath(imagePath: string) {
+  const extension = path.extname(imagePath).toLowerCase();
+  if (extension === '.jpg' || extension === '.jpeg') return 'image/jpeg';
+  if (extension === '.png') return 'image/png';
+  if (extension === '.webp') return 'image/webp';
+  if (extension === '.avif') return 'image/avif';
+  return 'application/octet-stream';
+}
+
 async function canReadStores(request: FastifyRequest) {
   const actor = request.authUser;
-  const readableRoles = new Set(['admin', 'administrator', 'administrador', 'employee', 'empleado', 'colaborador', 'seller', 'vendedor']);
+  const readableRoles = new Set([
+    'admin',
+    'administrator',
+    'administrador',
+    'employee',
+    'empleado',
+    'colaborador',
+    'supervisor',
+    'seller',
+    'vendedor'
+  ]);
   const roleKeys = actor?.roles.map((role) => role.roleKey.toLowerCase()) ?? [];
   const canReadByPermission = actor?.permissions.some((permission) => {
     return permission.resource === 'stores' && permission.action === 'read';
@@ -127,6 +264,10 @@ async function canReadStores(request: FastifyRequest) {
   if (!canReadByPermission && !canReadByRole) {
     throw new ForbiddenError('Permiso requerido para leer productos');
   }
+}
+
+function canReadSensitiveStorePrices(actor: NonNullable<FastifyRequest['authUser']>) {
+  return actor.roles.some((role) => role.roleKey === 'admin');
 }
 
 async function parseCreateStoreRequest(request: FastifyRequest) {

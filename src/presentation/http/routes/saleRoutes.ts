@@ -64,7 +64,17 @@ async function canCreateSales(request: FastifyRequest) {
   const hasPermission = actor?.permissions.some((permission) => {
     return permission.resource === 'sales' && permission.action === 'create';
   }) ?? false;
-  const creatableRoles = new Set(['admin', 'administrator', 'administrador', 'employee', 'empleado', 'colaborador', 'seller', 'vendedor']);
+  const creatableRoles = new Set([
+    'admin',
+    'administrator',
+    'administrador',
+    'employee',
+    'empleado',
+    'colaborador',
+    'supervisor',
+    'seller',
+    'vendedor'
+  ]);
   const hasRole = actor?.roles.some((role) => creatableRoles.has(role.roleKey.toLowerCase())) ?? false;
 
   if (!hasPermission && !hasRole) {

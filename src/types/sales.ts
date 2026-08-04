@@ -13,5 +13,6 @@ export interface CreateSaleInput {
   deliveryPay: string;
   phone?: string | undefined;
   description?: string | undefined;
+  locationUrl?: string | undefined;
   items: CreateSaleItemInput[];
 }

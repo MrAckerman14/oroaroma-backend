@@ -7,6 +7,7 @@ import {
   permissionActionLabels,
   permissionResourceLabels,
   permissionScopeLabels,
+  roleLabels,
   userStatusLabels
 } from '../../shared/utils/spanishLabels.js';
 import type { PasswordHasher } from '../../infrastructure/security/PasswordHasher.js';
@@ -69,7 +70,7 @@ export class UserUseCases {
     });
 
     if (existingUser && !existingUser.deletedAt) {
-      const roleNames = existingUser.roleAssignments.map((assignment) => assignment.role.name);
+      const roleNames = existingUser.roleAssignments.map((assignment) => this.roleDisplayName(assignment.role.key, assignment.role.name));
       throw new ConflictError(`Ya existe un usuario activo con ese correo: ${existingUser.name}`, {
         usuario: {
           id: existingUser.id,
@@ -146,7 +147,23 @@ export class UserUseCases {
   async listOptions(input: DashboardInput, actor?: AuthenticatedUser) {
     const range = dateRangeOrCurrentDay(input);
     const createdAt = buildCreatedAtFilter(range);
-    const where = { deletedAt: null, status: 'ACTIVE' as const };
+    const visibleRoleKeys = this.visibleOptionRoleKeys(actor);
+    const isAdmin = this.hasAnyRole(actor, ['admin']);
+    const where = {
+      deletedAt: null,
+      status: 'ACTIVE' as const,
+      ...(!isAdmin ? {
+        roleAssignments: {
+          some: {
+            role: {
+              key: {
+                in: visibleRoleKeys
+              }
+            }
+          }
+        }
+      } : {})
+    };
     const [items, total] = await Promise.all([
       this.prisma.user.findMany({
         where,
@@ -175,7 +192,11 @@ export class UserUseCases {
 
     const presentedItems = await Promise.all(items.map(async (user) => {
       const roleKeys = user.roleAssignments.map((assignment) => assignment.role.key);
-      const roleNames = user.roleAssignments.map((assignment) => assignment.role.name);
+      const roleNames = user.roleAssignments.map((assignment) => this.roleDisplayName(assignment.role.key, assignment.role.name));
+      const roleAssignments = user.roleAssignments.map((assignment) => ({
+        ...assignment,
+        role: this.presentRole(assignment.role)
+      }));
       const messengerStats = roleKeys.includes('messenger')
         ? await this.messengerStats(user.id, createdAt, actor)
         : this.emptyMessengerStats();
@@ -183,15 +204,21 @@ export class UserUseCases {
       return {
         id: user.id,
         name: user.name,
-        email: user.email,
+        email: isAdmin ? user.email : null,
         status: user.status,
         roles: roleKeys,
         roleKey: roleKeys[0] ?? null,
         role: roleNames[0] ?? null,
         roleName: roleNames[0] ?? null,
-        roleAssignments: user.roleAssignments,
+        roleLabel: roleNames[0] ?? null,
+        roleDisplayName: roleNames[0] ?? null,
+        roleAssignments,
         completedDeliveries: messengerStats.completedDeliveries,
         deliveriesCount: messengerStats.completedDeliveries,
+        completedDeliveryPay: messengerStats.completedDeliveryPay,
+        earnedMoney: messengerStats.earnedMoney,
+        messengerEarnings: messengerStats.messengerEarnings,
+        totalEarned: messengerStats.totalEarned,
         deliveryPayment: messengerStats.deliveryPayment,
         pendingDeliveryPay: messengerStats.pendingDeliveryPay,
         pendingMoney: messengerStats.pendingMoney,
@@ -220,7 +247,7 @@ export class UserUseCases {
 
     const items = await Promise.all(users.map(async (user) => {
       const roleKeys = user.roleAssignments.map((assignment) => assignment.role.key);
-      const roleNames = user.roleAssignments.map((assignment) => assignment.role.name);
+      const roleNames = user.roleAssignments.map((assignment) => this.roleDisplayName(assignment.role.key, assignment.role.name));
       const [employeeStats, messengerStats, sellerStats] = await Promise.all([
         this.salesStats({ employeeId: user.id }, createdAt, rangeDays, user.name),
         this.messengerStats(user.id, createdAt),
@@ -240,6 +267,8 @@ export class UserUseCases {
         roles: roleKeys,
         role: roleNames[0] ?? null,
         roleName: roleNames[0] ?? null,
+        roleLabel: roleNames[0] ?? null,
+        roleDisplayName: roleNames[0] ?? null,
         orders: primaryStats.orders,
         finalizedOrders: primaryStats.orders,
         deliveriesCount,
@@ -266,6 +295,10 @@ export class UserUseCases {
         netCash: primaryStats.net,
         sellerNet: sellerStats.net,
         completedDeliveries: messengerStats.completedDeliveries,
+        completedDeliveryPay: messengerStats.completedDeliveryPay,
+        earnedMoney: messengerStats.earnedMoney,
+        messengerEarnings: messengerStats.messengerEarnings,
+        totalEarned: messengerStats.totalEarned,
         deliveryPayment: messengerStats.deliveryPayment,
         pendingDeliveryPay: messengerStats.pendingDeliveryPay,
         pendingMoney: messengerStats.pendingMoney,
@@ -354,7 +387,7 @@ export class UserUseCases {
       throw new ValidationAppError('El producto o tienda es requerido para el alcance seleccionado');
     }
 
-    return this.prisma.userRoleAssignment.create({
+    const assignment = await this.prisma.userRoleAssignment.create({
       data: {
         userId,
         roleId: role.id,
@@ -362,8 +395,13 @@ export class UserUseCases {
         storeId: input.storeId ?? null,
         expiresAt: input.expiresAt ? new Date(input.expiresAt) : null
       },
-      include: { role: true, store: true }
+      include: { role: true, store: this.roleAssignmentStoreSelect() }
     });
+
+    return {
+      ...assignment,
+      role: this.presentRole(assignment.role)
+    };
   }
 
   async replaceRole(userId: string, input: AssignRoleInput) {
@@ -375,7 +413,7 @@ export class UserUseCases {
       throw new ValidationAppError('El producto o tienda es requerido para el alcance seleccionado');
     }
 
-    return this.prisma.$transaction(async (tx) => {
+    const assignment = await this.prisma.$transaction(async (tx) => {
       await tx.userRoleAssignment.deleteMany({ where: { userId } });
 
       return tx.userRoleAssignment.create({
@@ -386,9 +424,14 @@ export class UserUseCases {
           storeId: input.storeId ?? null,
           expiresAt: input.expiresAt ? new Date(input.expiresAt) : null
         },
-        include: { role: true, store: true }
+        include: { role: true, store: this.roleAssignmentStoreSelect() }
       });
     });
+
+    return {
+      ...assignment,
+      role: this.presentRole(assignment.role)
+    };
   }
 
   async listRoles() {
@@ -400,7 +443,7 @@ export class UserUseCases {
     });
 
     return roles.map((role) => ({
-      ...role,
+      ...this.presentRole(role),
       permissions: role.permissions.map((rolePermission) => ({
         ...rolePermission,
         permission: this.presentPermission(rolePermission.permission)
@@ -556,7 +599,8 @@ export class UserUseCases {
           ...scopedWhere,
           ...(createdAt ? { createdAt } : {})
         },
-        _count: { id: true }
+        _count: { id: true },
+        _sum: { deliveryPay: true }
       }),
       this.prisma.sale.aggregate({
         where: {
@@ -569,12 +613,17 @@ export class UserUseCases {
         _sum: { amountCash: true, deliveryPay: true }
       })
     ]);
+    const completedDeliveryPay = completed._sum.deliveryPay ?? new Prisma.Decimal(0);
     const pendingDeliveryPay = pending._sum.deliveryPay ?? new Prisma.Decimal(0);
     const pendingMoney = pending._sum.amountCash ?? new Prisma.Decimal(0);
 
     return {
       deliveries: completed._count.id,
       completedDeliveries: completed._count.id,
+      completedDeliveryPay,
+      earnedMoney: completedDeliveryPay,
+      messengerEarnings: completedDeliveryPay,
+      totalEarned: completedDeliveryPay,
       deliveryPayment: pendingDeliveryPay,
       deliveryPay: pendingDeliveryPay,
       shippingPayment: pendingDeliveryPay,
@@ -590,6 +639,10 @@ export class UserUseCases {
     return {
       deliveries: 0,
       completedDeliveries: 0,
+      completedDeliveryPay: zero,
+      earnedMoney: zero,
+      messengerEarnings: zero,
+      totalEarned: zero,
       deliveryPayment: zero,
       deliveryPay: zero,
       shippingPayment: zero,
@@ -654,17 +707,84 @@ export class UserUseCases {
       roleAssignments: {
         include: {
           role: true,
-          store: true
+          store: this.roleAssignmentStoreSelect()
         }
       }
     } as const;
   }
 
+  private roleAssignmentStoreSelect() {
+    return {
+      select: {
+        id: true,
+        name: true,
+        description: true,
+        stock: true,
+        imagePath: true
+      }
+    } as const;
+  }
+
+  private visibleOptionRoleKeys(actor?: AuthenticatedUser) {
+    if (this.hasAnyRole(actor, ['admin'])) {
+      return ['admin', 'employee', 'supervisor', 'seller', 'messenger'];
+    }
+
+    if (this.hasAnyRole(actor, ['employee', 'supervisor'])) {
+      return ['seller', 'messenger'];
+    }
+
+    if (this.hasAnyRole(actor, ['seller'])) {
+      return ['messenger'];
+    }
+
+    return [];
+  }
+
+  private hasAnyRole(actor: AuthenticatedUser | undefined, roles: string[]) {
+    return actor?.roles.some((role) => roles.includes(role.roleKey)) ?? false;
+  }
+
   private presentUser<T extends { status: string }>(user: T) {
+    const userWithRoles = user as unknown as {
+      roleAssignments?: Array<{ role?: { key: string; name: string } }>;
+    };
+    const roleAssignments = Array.isArray(userWithRoles.roleAssignments)
+      ? userWithRoles.roleAssignments.map((assignment) => ({
+        ...assignment,
+        role: assignment.role ? this.presentRole(assignment.role) : assignment.role
+      }))
+      : undefined;
+    const roleKeys = roleAssignments?.map((assignment) => assignment.role?.key).filter(Boolean) ?? [];
+    const firstRole = roleAssignments?.[0]?.role;
+
     return {
       ...user,
+      ...(roleAssignments ? { roleAssignments } : {}),
+      ...(roleAssignments ? {
+        roles: roleKeys,
+        roleKey: roleKeys[0] ?? null,
+        role: firstRole?.name ?? null,
+        roleName: firstRole?.name ?? null,
+        roleLabel: firstRole?.name ?? null,
+        roleDisplayName: firstRole?.name ?? null
+      } : {}),
       statusLabel: labelFromMap(userStatusLabels, user.status)
     };
+  }
+
+  private presentRole<T extends { key: string; name: string }>(role: T) {
+    const name = this.roleDisplayName(role.key, role.name);
+    return {
+      ...role,
+      name,
+      label: name,
+      displayName: name
+    };
+  }
+
+  private roleDisplayName(roleKey: string, fallback?: string | null) {
+    return roleLabels[roleKey] ?? fallback ?? roleKey;
   }
 
   private presentPermission<T extends { resource: string; action: string; scope: string }>(permission: T) {

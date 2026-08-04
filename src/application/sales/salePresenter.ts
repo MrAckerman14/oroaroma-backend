@@ -2,13 +2,15 @@ import type { Prisma } from '@prisma/client';
 import { labelFromMap, paymentMethodLabels, saleStatusLabels } from '../../shared/utils/spanishLabels.js';
 
 type SaleDetailWithStore = {
+  id: string;
+  storeId: string;
   quantity: number;
   unitPrice: Prisma.Decimal;
   store: {
     id: string;
     name: string;
     description: string | null;
-    salePrice: Prisma.Decimal;
+    imagePath: string | null;
   };
 };
 
@@ -25,11 +27,15 @@ export function presentSale<TSale extends SaleWithDetails>(sale: TSale) {
       'paymentMethod' in sale && typeof sale.paymentMethod === 'string' ? sale.paymentMethod : null
     ),
     details: sale.details.map((detail) => ({
-      ...detail,
+      id: detail.id,
+      storeId: detail.storeId,
+      quantity: detail.quantity,
+      unitPrice: detail.unitPrice,
       productId: detail.store.id,
       productName: detail.store.name,
       productDescription: detail.store.description,
-      salePrice: detail.store.salePrice,
+      productImagePath: detail.store.imagePath,
+      salePrice: detail.unitPrice,
       quantitySold: detail.quantity,
       subtotal: detail.unitPrice.mul(detail.quantity)
     }))

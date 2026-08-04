@@ -54,6 +54,7 @@ export class CreateSaleUseCase {
           status: 'DELIVERY_PENDING',
           phone: input.phone ?? null,
           description: input.description ?? null,
+          locationUrl: input.locationUrl?.trim() || null,
           details: {
             create: input.items.map((item) => {
               const product = productsById.get(item.productId);
@@ -71,8 +72,19 @@ export class CreateSaleUseCase {
         },
         include: {
           details: {
-            include: {
-              store: true
+            select: {
+              id: true,
+              storeId: true,
+              quantity: true,
+              unitPrice: true,
+              store: {
+                select: {
+                  id: true,
+                  name: true,
+                  description: true,
+                  imagePath: true
+                }
+              }
             }
           }
         }

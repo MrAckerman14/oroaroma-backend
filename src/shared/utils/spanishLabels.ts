@@ -22,6 +22,14 @@ export const cashClosureStatusLabels: Record<string, string> = {
   VOIDED: 'Anulado'
 };
 
+export const roleLabels: Record<string, string> = {
+  admin: 'Administrador',
+  employee: 'Vendedor',
+  supervisor: 'Supervisor',
+  seller: 'Colaborador',
+  messenger: 'Mensajero'
+};
+
 export const permissionResourceLabels: Record<string, string> = {
   users: 'usuarios',
   roles: 'roles',
@@ -48,8 +56,8 @@ export const permissionActionLabels: Record<string, string> = {
   export: 'exportar',
   cash: 'cuadrar caja',
   'cash-detail-messengers': 'ver detalle de mensajeros',
-  'cash-detail-sellers': 'ver detalle de vendedores',
-  'cash-detail-employees': 'ver detalle de colaboradores',
+  'cash-detail-sellers': 'ver detalle de colaboradores',
+  'cash-detail-employees': 'ver detalle de vendedores',
   inventory: 'inventario'
 };
 

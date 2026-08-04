@@ -44,6 +44,29 @@ Credenciales iniciales:
 
 La venta usa `DEFAULT_SELLER_NAME="admin"` como colaborador interno por defecto cuando el frontend no envia `employeeId`.
 
+## Paginacion
+
+Las rutas listadas usan paginacion por query string:
+
+```txt
+?page=1&pageSize=100
+```
+
+Por defecto la API devuelve 100 registros por pagina. Si el frontend necesita cargar mas registros para un rango grande, puede enviar un `pageSize` mayor hasta el limite configurado.
+
+Variables recomendadas:
+
+```env
+DEFAULT_PAGE_SIZE=100
+MAX_PAGE_SIZE=5000
+```
+
+Ejemplo para cargar hasta 1000 ventas en una pagina:
+
+```txt
+/sales?from=2026-05-01&to=2026-08-01&page=1&pageSize=1000
+```
+
 ## RBAC
 
 Los permisos se modelan como `resource + action + scope`, por ejemplo:

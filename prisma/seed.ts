@@ -59,7 +59,7 @@ const roleDefinitions = {
     permissions: permissions.map(([key]) => key)
   },
   employee: {
-    name: 'Colaborador',
+    name: 'Vendedor',
     description: 'Crea y gestiona sus ventas; consulta productos y sus reportes',
     permissions: [
       'stores:read:global',
@@ -70,12 +70,27 @@ const roleDefinitions = {
       'sales:cancel:own',
       'reports:cash:own',
       'reports:cash-detail-messengers:own',
-      'cash-closures:read:own',
-      'inventory-reports:read:own'
+      'cash-closures:read:own'
+    ]
+  },
+  supervisor: {
+    name: 'Supervisor',
+    description: 'Crea y gestiona sus ventas con acceso al detalle de colaboradores',
+    permissions: [
+      'stores:read:global',
+      'sales:create:own',
+      'sales:read:own',
+      'sales:update:own',
+      'sales:finalize:own',
+      'sales:cancel:own',
+      'reports:cash:own',
+      'reports:cash-detail-messengers:own',
+      'reports:cash-detail-employees:own',
+      'cash-closures:read:own'
     ]
   },
   seller: {
-    name: 'Vendedor',
+    name: 'Colaborador',
     description: 'Consulta y da seguimiento a sus ventas asignadas',
     permissions: [
       'stores:read:global',

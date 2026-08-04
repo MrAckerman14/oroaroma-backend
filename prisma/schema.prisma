@@ -169,6 +169,7 @@ model Sale {
   perfumeCount   Int
   phone          String?
   description    String?
+  locationUrl    String?
   status         SaleStatus   @default(DELIVERY_PENDING)
   finalizedAt    DateTime?
   cancelledAt    DateTime?
@@ -208,6 +209,8 @@ model SaleDetail {
 
 model CashClosure {
   id                 String            @id @default(uuid())
+  name               String
+  note               String?
   createdById        String
   fromDate           DateTime
   toDate             DateTime
@@ -218,6 +221,7 @@ model CashClosure {
   netTotal           Decimal           @db.Decimal(12, 2)
   totalPerfumes      Int
   pendingMoney       Decimal           @default(0) @db.Decimal(12, 2)
+  pendingCash        Decimal           @default(0) @db.Decimal(12, 2)
   pendingMessengerPay Decimal          @default(0) @db.Decimal(12, 2)
   internalSale       Decimal           @default(0) @db.Decimal(12, 2)
   generalSale        Decimal           @default(0) @db.Decimal(12, 2)
@@ -248,6 +252,8 @@ model CashClosureDetail {
 
 model InventoryReport {
   id                  String   @id @default(uuid())
+  name                String
+  note                String?
   fromDate            DateTime
   toDate              DateTime
   createdById         String

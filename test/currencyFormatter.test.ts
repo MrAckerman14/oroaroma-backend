@@ -19,6 +19,12 @@ describe('currencyFormatter', () => {
     const response = addFormattedCurrencyFields({
       data: {
         amount: '50.07',
+        earnedMoney: '300',
+        messengerEarnings: '300',
+        totalEarned: '300',
+        pendingCashTotal: '250',
+        totalPendingCash: '250',
+        pendingCashAmount: '250',
         totalProducts: 700000,
         details: [
           {
@@ -33,6 +39,18 @@ describe('currencyFormatter', () => {
       data: {
         amount: '50.07',
         amountFormatted: 'RD$50.07',
+        earnedMoney: '300',
+        earnedMoneyFormatted: 'RD$300',
+        messengerEarnings: '300',
+        messengerEarningsFormatted: 'RD$300',
+        totalEarned: '300',
+        totalEarnedFormatted: 'RD$300',
+        pendingCashTotal: '250',
+        pendingCashTotalFormatted: 'RD$250',
+        totalPendingCash: '250',
+        totalPendingCashFormatted: 'RD$250',
+        pendingCashAmount: '250',
+        pendingCashAmountFormatted: 'RD$250',
         totalProducts: 700000,
         details: [
           {
