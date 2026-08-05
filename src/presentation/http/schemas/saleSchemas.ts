@@ -1,7 +1,21 @@
 import { z } from 'zod';
 
 const moneySchema = z.string().regex(/^\d+(\.\d{1,2})?$/);
-const locationUrlSchema = z.url().max(1000).or(z.literal(''));
+const createLocationSchema = z.preprocess((value) => {
+  if (value === null || value === undefined) return undefined;
+  if (typeof value !== 'string') return value;
+
+  const trimmedValue = value.trim();
+  return trimmedValue ? trimmedValue : undefined;
+}, z.string().max(1000).optional());
+const updateLocationSchema = z.preprocess((value) => {
+  if (value === undefined) return undefined;
+  if (value === null) return null;
+  if (typeof value !== 'string') return value;
+
+  const trimmedValue = value.trim();
+  return trimmedValue ? trimmedValue : null;
+}, z.string().max(1000).nullable().optional());
 
 const saleItemSchema = z.object({
   productId: z.uuid(),
@@ -18,7 +32,7 @@ export const createSaleSchema = z.object({
   deliveryPay: moneySchema.default('0'),
   phone: z.string().min(6).max(30).optional(),
   description: z.string().max(500).optional(),
-  locationUrl: locationUrlSchema.optional(),
+  locationUrl: createLocationSchema,
   items: z.array(saleItemSchema).min(1)
 });
 
@@ -32,7 +46,7 @@ export const updateSaleSchema = z.object({
   deliveryPay: moneySchema.optional(),
   phone: z.string().min(6).max(30).nullable().optional(),
   description: z.string().max(500).nullable().optional(),
-  locationUrl: locationUrlSchema.nullable().optional(),
+  locationUrl: updateLocationSchema,
   status: z.enum(['DELIVERY_PENDING', 'FINALIZED', 'CANCELLED']).optional(),
   items: z.array(saleItemSchema).min(1).optional()
 });
