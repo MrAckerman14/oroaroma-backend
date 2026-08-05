@@ -77,6 +77,7 @@ const roleDefinitions = {
     name: 'Supervisor',
     description: 'Crea y gestiona sus ventas con acceso al detalle de colaboradores',
     permissions: [
+      'users:read:global',
       'stores:read:global',
       'sales:create:own',
       'sales:read:own',
