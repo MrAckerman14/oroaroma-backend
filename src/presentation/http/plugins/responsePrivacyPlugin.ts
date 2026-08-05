@@ -6,9 +6,7 @@ const globallySensitiveKeys = new Set([
   'purchasePrice',
   'purchasePriceFormatted',
   'purchaseUnitPrice',
-  'purchaseUnitPriceFormatted',
-  'salePrice',
-  'salePriceFormatted'
+  'purchaseUnitPriceFormatted'
 ]);
 
 export function registerResponsePrivacyHook(app: FastifyInstance) {

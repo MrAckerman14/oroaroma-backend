@@ -3,7 +3,7 @@ import { describe, expect, it } from 'vitest';
 import { sanitizeResponse } from './responsePrivacyPlugin.js';
 
 describe('sanitizeResponse', () => {
-  it('quita precios internos y correos en respuestas no admin', () => {
+  it('quita costos internos y correos en respuestas no admin, pero mantiene precio de venta', () => {
     const request = {
       url: '/stores',
       authUser: {
@@ -26,6 +26,7 @@ describe('sanitizeResponse', () => {
 
     expect(result.data.items[0]).toEqual({
       name: 'Perfume',
+      salePrice: '175',
       stock: 5
     });
   });
