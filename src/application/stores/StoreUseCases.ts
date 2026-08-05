@@ -57,10 +57,7 @@ export class StoreUseCases {
         totalSold: soldQuantities.get(store.id) ?? 0,
         soldCount: soldQuantities.get(store.id) ?? 0
       }))
-      .sort((a, b) => {
-        if (b.quantitySold !== a.quantitySold) return b.quantitySold - a.quantitySold;
-        return a.name.localeCompare(b.name);
-      });
+      .sort((a, b) => a.name.localeCompare(b.name));
 
     const start = (pagination.page - 1) * pagination.pageSize;
     const items = enriched.slice(start, start + pagination.pageSize);
@@ -244,6 +241,7 @@ export class StoreUseCases {
       description: store.description,
       stock: store.stock,
       imagePath: store.imagePath,
+      salePrice: store.salePrice,
       quantitySold: store.quantitySold ?? 0,
       soldQuantity: store.soldQuantity ?? store.quantitySold ?? 0,
       totalSold: store.totalSold ?? store.quantitySold ?? 0,

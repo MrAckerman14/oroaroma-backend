@@ -15,18 +15,18 @@ const product = {
   deletedAt: null
 };
 
-function makeUseCases() {
+function makeUseCases(products = [product]) {
   const prisma = {
     store: {
-      findMany: vi.fn().mockResolvedValue([product]),
-      count: vi.fn().mockResolvedValue(1),
-      findFirst: vi.fn().mockResolvedValue(product)
+      findMany: vi.fn().mockResolvedValue(products),
+      count: vi.fn().mockResolvedValue(products.length),
+      findFirst: vi.fn().mockResolvedValue(products[0])
     },
     saleDetail: {
-      groupBy: vi.fn().mockResolvedValue([{
-        storeId: product.id,
-        _sum: { quantity: 3 }
-      }])
+      groupBy: vi.fn().mockResolvedValue(products.map((item, index) => ({
+        storeId: item.id,
+        _sum: { quantity: products.length === 1 ? 3 : index + 1 }
+      })))
     }
   };
 
@@ -37,7 +37,7 @@ function makeUseCases() {
 }
 
 describe('StoreUseCases', () => {
-  it('oculta precios sensibles en el listado publico de productos', async () => {
+  it('muestra precio de venta y oculta precio de compra en el listado no administrativo', async () => {
     const { stores } = makeUseCases();
 
     const result = await stores.list({ page: 1, pageSize: 10 });
@@ -48,13 +48,62 @@ describe('StoreUseCases', () => {
       description: product.description,
       stock: product.stock,
       imagePath: product.imagePath,
+      salePrice: product.salePrice,
       quantitySold: 3,
       soldQuantity: 3,
       totalSold: 3,
       soldCount: 3
     });
     expect(result.items[0]).not.toHaveProperty('purchasePrice');
-    expect(result.items[0]).not.toHaveProperty('salePrice');
+  });
+
+  it('ordena los productos alfabeticamente por defecto', async () => {
+    const zProduct = { ...product, id: 'product-z', name: 'Zafiro' };
+    const aProduct = { ...product, id: 'product-a', name: 'Ambar' };
+    const { stores, prisma } = makeUseCases([zProduct, aProduct]);
+
+    const result = await stores.list({ page: 1, pageSize: 10 });
+
+    expect(prisma.store.findMany).toHaveBeenCalledWith(expect.objectContaining({
+      orderBy: { name: 'asc' }
+    }));
+    expect(result.items.map((item) => item.name)).toEqual(['Ambar', 'Zafiro']);
+  });
+
+  it('no reordena por vendidos cuando calcula cantidades vendidas', async () => {
+    const firstProduct = { ...product, id: 'product-first', name: 'A primero' };
+    const secondProduct = { ...product, id: 'product-second', name: 'B segundo' };
+    const { stores, prisma } = makeUseCases([firstProduct, secondProduct]);
+    prisma.saleDetail.groupBy.mockResolvedValue([
+      { storeId: firstProduct.id, _sum: { quantity: 1 } },
+      { storeId: secondProduct.id, _sum: { quantity: 99 } }
+    ]);
+
+    const result = await stores.list({ page: 1, pageSize: 10 });
+
+    expect(result.items).toMatchObject([
+      {
+        id: firstProduct.id,
+        quantitySold: 1
+      },
+      {
+        id: secondProduct.id,
+        quantitySold: 99
+      }
+    ]);
+  });
+
+  it('incluye cantidad vendida en el listado no administrativo', async () => {
+    const { stores } = makeUseCases();
+
+    const result = await stores.list({ page: 1, pageSize: 10 });
+
+    expect(result.items[0]).toMatchObject({
+      quantitySold: 3,
+      soldQuantity: 3,
+      totalSold: 3,
+      soldCount: 3
+    });
   });
 
   it('mantiene los precios cuando se solicita la vista sensible', async () => {
