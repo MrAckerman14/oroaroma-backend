@@ -52,13 +52,12 @@ Las rutas listadas usan paginacion por query string:
 ?page=1&pageSize=100
 ```
 
-Por defecto la API devuelve 100 registros por pagina. Si el frontend necesita cargar mas registros para un rango grande, puede enviar un `pageSize` mayor hasta el limite configurado.
+Por defecto la API devuelve 100 registros por pagina. Si el frontend necesita cargar mas registros para un rango grande, puede enviar un `pageSize` mayor. El backend no impone un limite maximo configurable sobre `pageSize`.
 
 Variables recomendadas:
 
 ```env
 DEFAULT_PAGE_SIZE=100
-MAX_PAGE_SIZE=5000
 ```
 
 Ejemplo para cargar hasta 1000 ventas en una pagina:

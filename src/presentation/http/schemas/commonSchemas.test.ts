@@ -22,4 +22,16 @@ describe('paginationQuerySchema', () => {
       pageSize: 1000
     });
   });
+
+  it('no impone un limite maximo por variable de entorno', () => {
+    const query = paginationQuerySchema.parse({
+      page: '1',
+      pageSize: '1000000'
+    });
+
+    expect(query).toEqual({
+      page: 1,
+      pageSize: 1000000
+    });
+  });
 });

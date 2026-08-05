@@ -12,7 +12,7 @@ export const dateRangeQuerySchema = z.object({
 
 export const paginationQuerySchema = z.object({
   page: z.coerce.number().int().positive().default(1),
-  pageSize: z.coerce.number().int().positive().max(env.MAX_PAGE_SIZE).default(env.DEFAULT_PAGE_SIZE)
+  pageSize: z.coerce.number().int().positive().default(env.DEFAULT_PAGE_SIZE)
 });
 
 export const dateRangePaginationQuerySchema = dateRangeQuerySchema.merge(paginationQuerySchema);

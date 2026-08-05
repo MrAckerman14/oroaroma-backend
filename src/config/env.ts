@@ -21,8 +21,7 @@ const envSchema = z.object({
   EMPLOYEE_BONUS_TIERS: z.string().default('1000:10000,2000:16666,4000:33333,7000:50000,10000:66666'),
   CASH_CLOSURE_MAX_SALES: z.coerce.number().int().positive().max(5000).default(500),
   BUSINESS_DAY_START_HOUR: z.coerce.number().int().min(0).max(23).default(7),
-  DEFAULT_PAGE_SIZE: z.coerce.number().int().positive().max(5000).default(100),
-  MAX_PAGE_SIZE: z.coerce.number().int().positive().max(5000).default(5000),
+  DEFAULT_PAGE_SIZE: z.coerce.number().int().positive().default(100),
   STORAGE_DRIVER: z.enum(['local', 's3', 'r2']).default('local'),
   UPLOAD_ROOT: z.string().min(1).default('uploads'),
   UPLOAD_PUBLIC_BASE_PATH: z.string().min(1).default('/uploads'),
@@ -42,9 +41,6 @@ const envSchema = z.object({
   CURRENCY_MINOR_UNIT_DIGITS: z.coerce.number().int().min(0).max(4).default(2),
   CURRENCY_TRIM_ZERO_MINOR_UNITS: booleanEnv('true'),
   CURRENCY_SYMBOL_SPACING: booleanEnv('false')
-}).refine((value) => value.DEFAULT_PAGE_SIZE <= value.MAX_PAGE_SIZE, {
-  path: ['DEFAULT_PAGE_SIZE'],
-  message: 'DEFAULT_PAGE_SIZE no puede ser mayor que MAX_PAGE_SIZE'
 });
 
 export const env = envSchema.parse(process.env);
