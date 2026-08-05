@@ -70,14 +70,12 @@ async function canCreateSales(request: FastifyRequest) {
     'administrador',
     'employee',
     'empleado',
-    'colaborador',
     'supervisor',
-    'seller',
     'vendedor'
   ]);
   const hasRole = actor?.roles.some((role) => creatableRoles.has(role.roleKey.toLowerCase())) ?? false;
 
-  if (!hasPermission && !hasRole) {
+  if (!hasPermission || !hasRole) {
     throw new ForbiddenError('Permiso requerido para crear ventas');
   }
 }

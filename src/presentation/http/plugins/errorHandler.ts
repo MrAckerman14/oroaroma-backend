@@ -84,6 +84,13 @@ function toPrismaAppError(error: unknown): AppError | undefined {
       return new ValidationAppError('Identificador invalido');
     }
 
+    if (error.code === 'P2022') {
+      return new ValidationAppError('La base de datos no esta actualizada. Ejecuta las migraciones y vuelve a intentar.', {
+        modelo: typeof error.meta?.modelName === 'string' ? error.meta.modelName : undefined,
+        columna: typeof error.meta?.column === 'string' ? error.meta.column : undefined
+      });
+    }
+
     if (error.code === 'P2034') {
       return new ConflictError('Operacion concurrente detectada. Intenta nuevamente.');
     }
