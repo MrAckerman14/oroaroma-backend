@@ -67,7 +67,7 @@ export class ReportUseCases {
   async cashReconciliation(actor: AuthenticatedUser, input: CreateCashClosureInput) {
     const saleIds = this.validateRequestedSaleIds(input.saleIds);
     const where: Prisma.SaleWhereInput = saleIds?.length
-      ? this.closableSalesByIdsWhere(actor, saleIds)
+      ? this.reconciliationSalesByIdsWhere(actor, saleIds)
       : this.reconciliationSalesWhere(actor, input);
 
     const sales = await this.prisma.sale.findMany({
@@ -795,10 +795,47 @@ export class ReportUseCases {
   }
 
   private reconciliationSalesWhere(actor: AuthenticatedUser, input: CreateCashClosureInput): Prisma.SaleWhereInput {
+    const range = dateRangeOrCurrentDay(input);
+    const createdAt = buildCreatedAtFilter(range);
+    const canReadGlobal = this.canReadGlobalCashReconciliation(actor);
+
     return {
-      ...this.closableSalesWhere(actor, input),
-      status: { in: ['FINALIZED', 'CANCELLED', 'DELIVERY_PENDING'] }
+      status: { in: ['FINALIZED', 'CANCELLED', 'DELIVERY_PENDING'] },
+      deletedAt: null,
+      ...(createdAt ? { createdAt } : {}),
+      ...(canReadGlobal ? {} : {
+        OR: [
+          { employeeId: actor.id },
+          { sellerId: actor.id },
+          { messengerId: actor.id }
+        ]
+      })
     };
+  }
+
+  private reconciliationSalesByIdsWhere(
+    actor: AuthenticatedUser,
+    saleIds: string[]
+  ): Prisma.SaleWhereInput {
+    const canReadGlobal = this.canReadGlobalCashReconciliation(actor);
+
+    return {
+      id: { in: saleIds },
+      status: { in: ['FINALIZED', 'CANCELLED', 'DELIVERY_PENDING'] },
+      deletedAt: null,
+      ...(canReadGlobal ? {} : {
+        OR: [
+          { employeeId: actor.id },
+          { sellerId: actor.id },
+          { messengerId: actor.id }
+        ]
+      })
+    };
+  }
+
+  private canReadGlobalCashReconciliation(actor: AuthenticatedUser) {
+    return this.hasAnyRole(actor, ['admin', 'supervisor'])
+      || actor.permissions.some((permission) => permission.key === 'reports:cash:global');
   }
 
   private closableSalesByIdsWhere(

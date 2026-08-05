@@ -1,5 +1,5 @@
 import { Prisma, type PrismaClient } from '@prisma/client';
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import type { AuthenticatedUser } from '../../types/rbac.js';
 import { ReportUseCases } from './ReportUseCases.js';
 
@@ -143,6 +143,42 @@ describe('ReportUseCases', () => {
 
     expect(summary.detailEmployee).toHaveLength(1);
     expect(summary.detailSeller).toHaveLength(0);
+  });
+
+  it('permite al supervisor cargar todo el rango en el preview de cuadre de caja', async () => {
+    const findMany = vi.fn().mockResolvedValue([]);
+    const reports = new ReportUseCases({
+      sale: { findMany }
+    } as unknown as PrismaClient);
+
+    await reports.cashReconciliation(supervisorActor, {
+      from: '2026-06-01',
+      to: '2026-06-02'
+    });
+
+    const call = findMany.mock.calls[0]?.[0] as { where: Record<string, unknown> };
+    expect(call.where.status).toEqual({ in: ['FINALIZED', 'CANCELLED', 'DELIVERY_PENDING'] });
+    expect(call.where.deletedAt).toBeNull();
+    expect(call.where.OR).toBeUndefined();
+  });
+
+  it('mantiene el preview de cuadre de caja limitado para empleado normal', async () => {
+    const findMany = vi.fn().mockResolvedValue([]);
+    const reports = new ReportUseCases({
+      sale: { findMany }
+    } as unknown as PrismaClient);
+
+    await reports.cashReconciliation(employeeActor, {
+      from: '2026-06-01',
+      to: '2026-06-02'
+    });
+
+    const call = findMany.mock.calls[0]?.[0] as { where: Record<string, unknown> };
+    expect(call.where.OR).toEqual([
+      { employeeId: employeeActor.id },
+      { sellerId: employeeActor.id },
+      { messengerId: employeeActor.id }
+    ]);
   });
 
   it('mantiene oculto detalle por colaborador para empleado normal', async () => {
