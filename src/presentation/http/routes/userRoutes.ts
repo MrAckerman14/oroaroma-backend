@@ -1,7 +1,12 @@
 import type { FastifyInstance } from 'fastify';
+import { z } from 'zod';
 import { UserUseCases } from '../../../application/users/UserUseCases.js';
 import { dateRangePaginationQuerySchema, idParamsSchema } from '../schemas/commonSchemas.js';
 import { assignRoleSchema, createUserSchema, updateUserSchema } from '../schemas/userSchemas.js';
+
+const userOptionQuerySchema = dateRangePaginationQuerySchema.extend({
+  includeStats: z.preprocess((value) => value === true || value === 'true', z.boolean()).optional()
+});
 
 export async function userRoutes(app: FastifyInstance) {
   const users = new UserUseCases(app.container.prisma, app.container.passwordHasher);
@@ -19,7 +24,7 @@ export async function userRoutes(app: FastifyInstance) {
     '/users/plain',
     { preHandler: [app.authenticate] },
     async (request) => {
-      const query = dateRangePaginationQuerySchema.parse(request.query);
+      const query = userOptionQuerySchema.parse(request.query);
       return { data: await users.listOptions(query, request.authUser) };
     }
   );

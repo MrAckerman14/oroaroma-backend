@@ -52,6 +52,7 @@ export interface PaginationInput {
 export interface DashboardInput extends PaginationInput {
   from?: string | undefined;
   to?: string | undefined;
+  includeStats?: boolean | undefined;
 }
 
 export class UserUseCases {
@@ -150,6 +151,7 @@ export class UserUseCases {
     const visibleRoleKeys = this.visibleOptionRoleKeys(actor);
     const isAdmin = this.hasAnyRole(actor, ['admin']);
     const isSeller = this.hasAnyRole(actor, ['seller']);
+    const canIncludeOptionStats = Boolean(input.includeStats) && (isAdmin || this.hasAnyRole(actor, ['employee', 'supervisor', 'messenger']));
     const where = {
       deletedAt: null,
       status: 'ACTIVE' as const,
@@ -196,18 +198,24 @@ export class UserUseCases {
       this.prisma.user.count({ where })
     ]);
 
-    const presentedItems = await Promise.all(items.map(async (user) => {
+    const visibleItems = isSeller && actor?.id
+      ? items.filter((user) => {
+        const roleKeys = user.roleAssignments.map((assignment) => assignment.role.key);
+        return user.id === actor.id || roleKeys.includes('messenger');
+      })
+      : items;
+    const presentedItems = await Promise.all(visibleItems.map(async (user) => {
       const roleKeys = user.roleAssignments.map((assignment) => assignment.role.key);
       const roleNames = user.roleAssignments.map((assignment) => this.roleDisplayName(assignment.role.key, assignment.role.name));
       const roleAssignments = user.roleAssignments.map((assignment) => ({
         ...assignment,
         role: this.presentRole(assignment.role)
       }));
-      const messengerStats = roleKeys.includes('messenger')
+      const messengerStats = canIncludeOptionStats && roleKeys.includes('messenger')
         ? await this.messengerStats(user.id, createdAt, actor)
         : this.emptyMessengerStats();
 
-      return {
+      const base = {
         id: user.id,
         name: user.name,
         email: isAdmin ? user.email : null,
@@ -218,7 +226,15 @@ export class UserUseCases {
         roleName: roleNames[0] ?? null,
         roleLabel: roleNames[0] ?? null,
         roleDisplayName: roleNames[0] ?? null,
-        roleAssignments,
+        roleAssignments
+      };
+
+      if (!canIncludeOptionStats || !roleKeys.includes('messenger')) {
+        return base;
+      }
+
+      return {
+        ...base,
         completedDeliveries: messengerStats.completedDeliveries,
         deliveriesCount: messengerStats.completedDeliveries,
         completedDeliveryPay: messengerStats.completedDeliveryPay,
@@ -232,7 +248,8 @@ export class UserUseCases {
       };
     }));
 
-    return this.paginated(presentedItems, total, input);
+    const presentedTotal = isSeller ? presentedItems.length : total;
+    return this.paginated(presentedItems, presentedTotal, input);
   }
 
   async dashboard(input: DashboardInput) {

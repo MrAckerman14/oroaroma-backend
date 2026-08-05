@@ -1,5 +1,5 @@
 import { Prisma, type PrismaClient } from '@prisma/client';
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import type { PasswordHasher } from '../../infrastructure/security/PasswordHasher.js';
 import type { AuthenticatedUser } from '../../types/rbac.js';
 import { UserUseCases } from './UserUseCases.js';
@@ -44,7 +44,8 @@ describe('UserUseCases listOptions', () => {
           calls.findMany = args;
           return [
             userOption('seller-1', 'Colaborador', 'seller'),
-            userOption('messenger-1', 'Mensajero', 'messenger')
+            userOption('messenger-1', 'Mensajero', 'messenger'),
+            userOption('seller-2', 'Otro colaborador', 'seller')
           ];
         },
         count: async (args: unknown) => {
@@ -53,13 +54,13 @@ describe('UserUseCases listOptions', () => {
         }
       },
       sale: {
-        aggregate: async () => ({
+        aggregate: vi.fn(async () => ({
           _count: { id: 0 },
           _sum: {
             amountCash: new Prisma.Decimal(0),
             deliveryPay: new Prisma.Decimal(0)
           }
-        })
+        }))
       }
     };
     const users = new UserUseCases(prisma as unknown as PrismaClient, {} as PasswordHasher);
@@ -87,6 +88,9 @@ describe('UserUseCases listOptions', () => {
     });
     expect(result.items.map((item) => item.roleKey)).toEqual(['seller', 'messenger']);
     expect(result.items.map((item) => item.email)).toEqual([null, null]);
+    expect(result.items.map((item) => item.id)).not.toContain('seller-2');
+    expect(result.items[1]).not.toHaveProperty('pendingDeliveryPay');
+    expect(prisma.sale.aggregate).not.toHaveBeenCalled();
   });
 
   it('permite al vendedor ver colaboradores y mensajeros para crear ventas', async () => {

@@ -13,6 +13,7 @@ import { registerAuditHook } from './plugins/auditPlugin.js';
 import { containerPlugin } from './plugins/containerPlugin.js';
 import { registerCurrencyFormatHook } from './plugins/currencyFormatPlugin.js';
 import { registerErrorHandler } from './plugins/errorHandler.js';
+import { registerResponsePrivacyHook } from './plugins/responsePrivacyPlugin.js';
 import { registerRoutes } from './routes/index.js';
 
 export async function buildApp() {
@@ -63,6 +64,7 @@ export async function buildApp() {
   });
   await app.register(containerPlugin);
   await app.register(authPlugin);
+  registerResponsePrivacyHook(app);
   registerCurrencyFormatHook(app);
   registerAuditHook(app);
   await registerRoutes(app);

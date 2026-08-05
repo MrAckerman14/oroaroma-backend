@@ -92,12 +92,12 @@ export function formatCurrency(value: unknown, config: CurrencyFormatConfig = cu
 }
 
 export function addFormattedCurrencyFields<T>(payload: T, config: CurrencyFormatConfig = currencyFormatConfig): T {
-  return formatCurrencyFields(payload, config) as T;
+  return formatCurrencyFields(payload, config, []) as T;
 }
 
-function formatCurrencyFields(value: unknown, config: CurrencyFormatConfig): unknown {
+function formatCurrencyFields(value: unknown, config: CurrencyFormatConfig, path: string[]): unknown {
   if (Array.isArray(value)) {
-    return value.map((item) => formatCurrencyFields(item, config));
+    return value.map((item) => formatCurrencyFields(item, config, path));
   }
 
   if (!isPlainObject(value)) {
@@ -107,9 +107,10 @@ function formatCurrencyFields(value: unknown, config: CurrencyFormatConfig): unk
   const next: Record<string, unknown> = {};
 
   for (const [key, entryValue] of Object.entries(value)) {
-    next[key] = formatCurrencyFields(entryValue, config);
+    const nextPath = [...path, key];
+    next[key] = formatCurrencyFields(entryValue, config, nextPath);
 
-    if (currencyFieldNames.has(key) && !key.endsWith('Formatted')) {
+    if (shouldFormatCurrencyKey(key, nextPath)) {
       const formatted = formatCurrency(entryValue, config);
       if (formatted) {
         next[`${key}Formatted`] = formatted;
@@ -118,6 +119,12 @@ function formatCurrencyFields(value: unknown, config: CurrencyFormatConfig): unk
   }
 
   return next;
+}
+
+function shouldFormatCurrencyKey(key: string, path: string[]) {
+  return currencyFieldNames.has(key)
+    && !key.endsWith('Formatted')
+    && !(key === 'total' && path[path.length - 2] === 'pagination');
 }
 
 function normalizeDecimal(value: unknown, config: CurrencyFormatConfig) {
