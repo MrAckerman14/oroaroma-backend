@@ -148,6 +148,76 @@ describe('UserUseCases listOptions', () => {
     });
     expect(result.items.map((item) => item.roleKey)).toEqual(['seller', 'messenger']);
   });
+
+  it('calcula dinero ganado de mensajero para vendedor solo con sus ventas', async () => {
+    const actor: AuthenticatedUser = {
+      id: 'employee-1',
+      email: 'employee@oroaroma.local',
+      name: 'Vendedor',
+      status: 'ACTIVE',
+      statusLabel: 'Activo',
+      roles: [{ roleKey: 'employee', scope: 'own' }],
+      permissions: []
+    };
+    const aggregate = vi
+      .fn()
+      .mockResolvedValueOnce({
+        _count: { id: 2 },
+        _sum: { deliveryPay: new Prisma.Decimal(450) }
+      })
+      .mockResolvedValueOnce({
+        _count: { id: 0 },
+        _sum: {
+          amountCash: new Prisma.Decimal(1200),
+          deliveryPay: new Prisma.Decimal(150)
+        }
+      });
+    const prisma = {
+      user: {
+        findMany: async () => [userOption('messenger-1', 'Mensajero', 'messenger')],
+        count: async () => 1
+      },
+      sale: { aggregate }
+    };
+    const users = new UserUseCases(prisma as unknown as PrismaClient, {} as PasswordHasher);
+
+    const result = await users.listOptions({ page: 1, pageSize: 100, includeStats: true }, actor);
+
+    expect(aggregate).toHaveBeenNthCalledWith(1, expect.objectContaining({
+      where: expect.objectContaining({
+        messengerId: 'messenger-1',
+        status: { in: ['FINALIZED', 'CANCELLED'] },
+        OR: [
+          { employeeId: 'employee-1' },
+          { sellerId: 'employee-1' },
+          { messengerId: 'employee-1' }
+        ]
+      }),
+      _sum: { deliveryPay: true }
+    }));
+    expect(aggregate).toHaveBeenNthCalledWith(2, expect.objectContaining({
+      where: expect.objectContaining({
+        messengerId: 'messenger-1',
+        status: 'DELIVERY_PENDING',
+        OR: [
+          { employeeId: 'employee-1' },
+          { sellerId: 'employee-1' },
+          { messengerId: 'employee-1' }
+        ]
+      }),
+      _sum: { amountCash: true, deliveryPay: true }
+    }));
+    expect(result.items[0]).toMatchObject({
+      completedDeliveries: 2,
+      deliveriesCount: 2,
+      completedDeliveryPay: new Prisma.Decimal(450),
+      earnedMoney: new Prisma.Decimal(450),
+      messengerEarnings: new Prisma.Decimal(450),
+      totalEarned: new Prisma.Decimal(450),
+      pendingDeliveryPay: new Prisma.Decimal(150),
+      pendingMoney: new Prisma.Decimal(1200)
+    });
+  });
 });
 
 function userOption(id: string, name: string, roleKey: string) {
