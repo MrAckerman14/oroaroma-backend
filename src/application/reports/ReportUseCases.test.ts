@@ -54,12 +54,6 @@ const supervisorActor: AuthenticatedUser = {
   permissions: [
     ...employeeActor.permissions,
     {
-      key: 'reports:cash-detail-sellers:own',
-      resource: 'reports',
-      action: 'cash-detail-sellers',
-      scope: 'own'
-    },
-    {
       key: 'reports:cash-detail-employees:own',
       resource: 'reports',
       action: 'cash-detail-employees',
@@ -130,7 +124,7 @@ describe('ReportUseCases', () => {
     expect(summary.pendingCashAmount.toString()).toBe('250');
   });
 
-  it('permite al supervisor ver detalle por colaborador', async () => {
+  it('permite al supervisor ver detalle por vendedor y oculta detalle por colaborador', async () => {
     const reports = new ReportUseCases({} as PrismaClient);
     const cashSummary = (reports as unknown as {
       cashSummary: (actor: AuthenticatedUser, sales: unknown[]) => Promise<{
@@ -148,7 +142,7 @@ describe('ReportUseCases', () => {
     ]);
 
     expect(summary.detailEmployee).toHaveLength(1);
-    expect(summary.detailSeller).toHaveLength(1);
+    expect(summary.detailSeller).toHaveLength(0);
   });
 
   it('mantiene oculto detalle por colaborador para empleado normal', async () => {
