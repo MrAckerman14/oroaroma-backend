@@ -54,6 +54,12 @@ const supervisorActor: AuthenticatedUser = {
   permissions: [
     ...employeeActor.permissions,
     {
+      key: 'reports:cash-detail-sellers:own',
+      resource: 'reports',
+      action: 'cash-detail-sellers',
+      scope: 'own'
+    },
+    {
       key: 'reports:cash-detail-employees:own',
       resource: 'reports',
       action: 'cash-detail-employees',
@@ -135,13 +141,14 @@ describe('ReportUseCases', () => {
 
     const messenger = { id: 'messenger-1', name: 'Alex', email: 'alex@oroaroma.local' };
     const employee = { id: 'employee-1', name: 'Bradley', email: 'bradley@oroaroma.local' };
+    const seller = { id: 'seller-1', name: 'Payano', email: 'payano@oroaroma.local' };
 
     const summary = await cashSummary(supervisorActor, [
-      sale({ status: 'FINALIZED', deliveryPay: '300', messenger, employee })
+      sale({ status: 'FINALIZED', deliveryPay: '300', messenger, employee, seller })
     ]);
 
     expect(summary.detailEmployee).toHaveLength(1);
-    expect(summary.detailSeller).toHaveLength(0);
+    expect(summary.detailSeller).toHaveLength(1);
   });
 
   it('mantiene oculto detalle por colaborador para empleado normal', async () => {
