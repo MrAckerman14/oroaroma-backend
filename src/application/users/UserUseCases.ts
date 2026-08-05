@@ -288,6 +288,7 @@ export class UserUseCases {
         status: user.status,
         statusLabel: labelFromMap(userStatusLabels, user.status),
         roles: roleKeys,
+        roleKey: roleKeys[0] ?? null,
         role: roleNames[0] ?? null,
         roleName: roleNames[0] ?? null,
         roleLabel: roleNames[0] ?? null,
