@@ -93,6 +93,33 @@ describe('StoreUseCases', () => {
     ]);
   });
 
+  it('ordena por mas vendidos cuando se filtra por rango de tiempo', async () => {
+    const lowSoldProduct = { ...product, id: 'product-low', name: 'A poco vendido' };
+    const highSoldProduct = { ...product, id: 'product-high', name: 'C muy vendido' };
+    const tiedHighSoldProduct = { ...product, id: 'product-tied-high', name: 'B tambien vendido' };
+    const { stores, prisma } = makeUseCases([
+      lowSoldProduct,
+      highSoldProduct,
+      tiedHighSoldProduct
+    ]);
+    prisma.saleDetail.groupBy.mockResolvedValue([
+      { storeId: lowSoldProduct.id, _sum: { quantity: 1 } },
+      { storeId: highSoldProduct.id, _sum: { quantity: 99 } },
+      { storeId: tiedHighSoldProduct.id, _sum: { quantity: 99 } }
+    ]);
+
+    const result = await stores.list(
+      { page: 1, pageSize: 10 },
+      { from: '2026-08-01', to: '2026-08-08' }
+    );
+
+    expect(result.items.map((item) => item.id)).toEqual([
+      tiedHighSoldProduct.id,
+      highSoldProduct.id,
+      lowSoldProduct.id
+    ]);
+  });
+
   it('incluye cantidad vendida en el listado no administrativo', async () => {
     const { stores } = makeUseCases();
 

@@ -57,7 +57,13 @@ export class StoreUseCases {
         totalSold: soldQuantities.get(store.id) ?? 0,
         soldCount: soldQuantities.get(store.id) ?? 0
       }))
-      .sort((a, b) => a.name.localeCompare(b.name));
+      .sort((a, b) => {
+        if (this.hasExplicitSoldRange(options) && b.quantitySold !== a.quantitySold) {
+          return b.quantitySold - a.quantitySold;
+        }
+
+        return a.name.localeCompare(b.name);
+      });
 
     const start = (pagination.page - 1) * pagination.pageSize;
     const items = enriched.slice(start, start + pagination.pageSize);
@@ -301,6 +307,10 @@ export class StoreUseCases {
     const from = new Date(to);
     from.setDate(from.getDate() - 7);
     return { from, to };
+  }
+
+  private hasExplicitSoldRange(options: StoreListOptions) {
+    return Boolean(options.from || options.to);
   }
 
   private paginated<T>(items: T[], total: number, pagination: PaginationInput) {
