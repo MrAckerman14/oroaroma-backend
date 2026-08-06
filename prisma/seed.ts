@@ -82,7 +82,6 @@ const roleDefinitions = {
       'sales:read:own',
       'reports:cash:own',
       'reports:cash-detail-messengers:own',
-      'reports:cash-detail-employees:own',
       'cash-closures:read:own'
     ]
   },

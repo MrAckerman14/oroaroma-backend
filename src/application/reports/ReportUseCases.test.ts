@@ -50,16 +50,7 @@ const employeeActor: AuthenticatedUser = {
 
 const supervisorActor: AuthenticatedUser = {
   ...employeeActor,
-  roles: [{ roleKey: 'supervisor', scope: 'own' }],
-  permissions: [
-    ...employeeActor.permissions,
-    {
-      key: 'reports:cash-detail-employees:own',
-      resource: 'reports',
-      action: 'cash-detail-employees',
-      scope: 'own'
-    }
-  ]
+  roles: [{ roleKey: 'supervisor', scope: 'own' }]
 };
 
 describe('ReportUseCases', () => {
@@ -124,10 +115,11 @@ describe('ReportUseCases', () => {
     expect(summary.pendingCashAmount.toString()).toBe('250');
   });
 
-  it('permite al supervisor ver detalle por vendedor y oculta detalle por colaborador', async () => {
+  it('permite al supervisor ver solo detalle por mensajero en el cuadre', async () => {
     const reports = new ReportUseCases({} as PrismaClient);
     const cashSummary = (reports as unknown as {
       cashSummary: (actor: AuthenticatedUser, sales: unknown[]) => Promise<{
+        detailMessenger: unknown[];
         detailEmployee: unknown[];
         detailSeller: unknown[];
       }>;
@@ -141,7 +133,8 @@ describe('ReportUseCases', () => {
       sale({ status: 'FINALIZED', deliveryPay: '300', messenger, employee, seller })
     ]);
 
-    expect(summary.detailEmployee).toHaveLength(1);
+    expect(summary.detailMessenger).toHaveLength(1);
+    expect(summary.detailEmployee).toHaveLength(0);
     expect(summary.detailSeller).toHaveLength(0);
   });
 

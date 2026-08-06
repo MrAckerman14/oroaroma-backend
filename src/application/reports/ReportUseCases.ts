@@ -755,7 +755,7 @@ export class ReportUseCases {
       return false;
     }
 
-    if (detail === 'employees' && !this.hasAnyRole(actor, ['admin', 'supervisor'])) {
+    if (detail === 'employees' && !this.hasAnyRole(actor, ['admin'])) {
       return false;
     }
 
