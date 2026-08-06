@@ -14,7 +14,8 @@ export const updateStoreSchema = createStoreSchema.partial();
 
 export const storeListQuerySchema = dateRangePaginationQuerySchema.extend({
   minStock: z.coerce.number().int().min(0).optional(),
-  maxStock: z.coerce.number().int().min(0).optional()
+  maxStock: z.coerce.number().int().min(0).optional(),
+  search: z.string().trim().min(1).optional()
 }).refine((value) => {
   return value.minStock === undefined || value.maxStock === undefined || value.minStock <= value.maxStock;
 }, {

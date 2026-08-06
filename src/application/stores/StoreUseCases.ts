@@ -24,6 +24,7 @@ export interface StoreListOptions {
   to?: string | undefined;
   minStock?: number | undefined;
   maxStock?: number | undefined;
+  search?: string | undefined;
 }
 
 export class StoreUseCases {
@@ -34,10 +35,43 @@ export class StoreUseCases {
 
   async list(pagination: PaginationInput, options: StoreListOptions = {}) {
     const stockFilter = this.stockFilter(options);
+    const searchFilter = this.searchFilter(options.search);
     const where: Prisma.StoreWhereInput = {
       ...(options.includeDeleted ? {} : { deletedAt: null }),
-      ...(stockFilter ? { stock: stockFilter } : {})
+      ...(stockFilter ? { stock: stockFilter } : {}),
+      ...(searchFilter ? searchFilter : {})
     };
+
+    if (!this.hasExplicitSoldRange(options)) {
+      const [stores, total] = await Promise.all([
+        this.prisma.store.findMany({
+          where,
+          orderBy: { name: 'asc' },
+          skip: (pagination.page - 1) * pagination.pageSize,
+          take: pagination.pageSize
+        }),
+        this.prisma.store.count({ where })
+      ]);
+
+      const soldQuantities = await this.soldQuantitiesForStores(
+        stores.map((store) => store.id),
+        options
+      );
+
+      const items = stores.map((store) => ({
+        ...store,
+        quantitySold: soldQuantities.get(store.id) ?? 0,
+        soldQuantity: soldQuantities.get(store.id) ?? 0,
+        totalSold: soldQuantities.get(store.id) ?? 0,
+        soldCount: soldQuantities.get(store.id) ?? 0
+      }));
+
+      return this.paginated(
+        items.map((item) => this.presentStore(item, options.includeSensitivePrices === true)),
+        total,
+        pagination
+      );
+    }
 
     const stores = await this.prisma.store.findMany({
       where,
@@ -262,6 +296,18 @@ export class StoreUseCases {
       ...(options.minStock !== undefined ? { gte: options.minStock } : {}),
       ...(options.maxStock !== undefined ? { lte: options.maxStock } : {})
     } satisfies Prisma.IntFilter;
+  }
+
+  private searchFilter(search?: string) {
+    const value = search?.trim();
+    if (!value) return undefined;
+
+    return {
+      OR: [
+        { name: { contains: value, mode: 'insensitive' } },
+        { description: { contains: value, mode: 'insensitive' } }
+      ]
+    } satisfies Prisma.StoreWhereInput;
   }
 
   private async soldQuantitiesForStores(storeIds: string[], options: StoreListOptions) {

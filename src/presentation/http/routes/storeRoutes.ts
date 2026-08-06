@@ -24,7 +24,8 @@ export async function storeRoutes(app: FastifyInstance) {
           from: query.from,
           to: query.to,
           minStock: query.minStock,
-          maxStock: query.maxStock
+          maxStock: query.maxStock,
+          search: query.search
         })
       };
     }

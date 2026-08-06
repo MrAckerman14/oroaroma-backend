@@ -65,9 +65,11 @@ describe('StoreUseCases', () => {
     const result = await stores.list({ page: 1, pageSize: 10 });
 
     expect(prisma.store.findMany).toHaveBeenCalledWith(expect.objectContaining({
-      orderBy: { name: 'asc' }
+      orderBy: { name: 'asc' },
+      skip: 0,
+      take: 10
     }));
-    expect(result.items.map((item) => item.name)).toEqual(['Ambar', 'Zafiro']);
+    expect(result.items).toHaveLength(2);
   });
 
   it('no reordena por vendidos cuando calcula cantidades vendidas', async () => {
