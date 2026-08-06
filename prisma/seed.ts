@@ -79,6 +79,7 @@ const roleDefinitions = {
     permissions: [
       'users:read:global',
       'stores:read:global',
+      'sales:read:own',
       'reports:cash:own',
       'reports:cash-detail-messengers:own',
       'reports:cash-detail-employees:own',
