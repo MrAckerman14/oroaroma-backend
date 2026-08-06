@@ -14,7 +14,7 @@ const envSchema = z.object({
   JWT_SECRET: z.string().min(32, 'JWT_SECRET debe tener al menos 32 caracteres'),
   JWT_EXPIRES_IN: z.string().default('7d'),
   REFRESH_TOKEN_EXPIRES_DAYS: z.coerce.number().int().positive().default(30),
-  CORS_ORIGINS: z.string().default('http://localhost:9000,http://localhost:9100'),
+  CORS_ORIGINS: z.string().default('http://localhost:9000,http://localhost:9100,https://fronted-oro-aroma-u6s0.onrender.com'),
   BCRYPT_ROUNDS: z.coerce.number().int().min(8).max(15).default(12),
   DEFAULT_SELLER_NAME: z.string().min(2).default('admin'),
   EMPLOYEE_BONUS_BASE_DAYS: z.coerce.number().int().positive().max(366).default(30),
@@ -51,9 +51,18 @@ export const uploadPublicBasePath = env.UPLOAD_PUBLIC_BASE_PATH.startsWith('/')
 
 export const normalizedUploadPublicBasePath = uploadPublicBasePath.replace(/\/+$/, '') || '/uploads';
 
-export const corsOrigins = env.CORS_ORIGINS.split(',')
-  .map((origin) => origin.trim())
-  .filter(Boolean);
+const requiredCorsOrigins = [
+  'https://fronted-oro-aroma-u6s0.onrender.com'
+];
+
+export const corsOrigins = [
+  ...new Set([
+    ...env.CORS_ORIGINS.split(',')
+      .map((origin) => origin.trim().replace(/\/+$/, ''))
+      .filter(Boolean),
+    ...requiredCorsOrigins
+  ])
+];
 
 export const allowedImageMimeTypes = new Map(
   env.UPLOAD_ALLOWED_IMAGE_MIME_TYPES.split(',')

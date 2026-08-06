@@ -29,7 +29,14 @@ export async function buildApp() {
     crossOriginResourcePolicy: { policy: 'cross-origin' }
   });
   await app.register(cors, {
-    origin: corsOrigins,
+    origin: (origin, callback) => {
+      if (!origin) {
+        callback(null, true);
+        return;
+      }
+
+      callback(null, corsOrigins.includes(origin.replace(/\/+$/, '')));
+    },
     methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
     allowedHeaders: ['Authorization', 'Content-Type', 'Accept'],
     credentials: true,
