@@ -145,7 +145,7 @@ describe('ReportUseCases', () => {
     expect(summary.detailSeller).toHaveLength(0);
   });
 
-  it('permite al supervisor cargar todo el rango en el preview de cuadre de caja', async () => {
+  it('mantiene el preview de cuadre de caja limitado para supervisor', async () => {
     const findMany = vi.fn().mockResolvedValue([]);
     const reports = new ReportUseCases({
       sale: { findMany }
@@ -159,7 +159,11 @@ describe('ReportUseCases', () => {
     const call = findMany.mock.calls[0]?.[0] as { where: Record<string, unknown> };
     expect(call.where.status).toEqual({ in: ['FINALIZED', 'CANCELLED', 'DELIVERY_PENDING'] });
     expect(call.where.deletedAt).toBeNull();
-    expect(call.where.OR).toBeUndefined();
+    expect(call.where.OR).toEqual([
+      { employeeId: supervisorActor.id },
+      { sellerId: supervisorActor.id },
+      { messengerId: supervisorActor.id }
+    ]);
   });
 
   it('mantiene el preview de cuadre de caja limitado para empleado normal', async () => {

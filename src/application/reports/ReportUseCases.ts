@@ -834,7 +834,7 @@ export class ReportUseCases {
   }
 
   private canReadGlobalCashReconciliation(actor: AuthenticatedUser) {
-    return this.hasAnyRole(actor, ['admin', 'supervisor'])
+    return this.hasAnyRole(actor, ['admin'])
       || actor.permissions.some((permission) => permission.key === 'reports:cash:global');
   }
 
