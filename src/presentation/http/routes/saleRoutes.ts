@@ -70,6 +70,7 @@ async function canCreateSales(request: FastifyRequest) {
     'administrador',
     'employee',
     'empleado',
+    'supervisor',
     'vendedor'
   ]);
   const hasRole = actor?.roles.some((role) => creatableRoles.has(role.roleKey.toLowerCase())) ?? false;
