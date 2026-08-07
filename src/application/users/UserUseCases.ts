@@ -53,6 +53,7 @@ export interface DashboardInput extends PaginationInput {
   from?: string | undefined;
   to?: string | undefined;
   includeStats?: boolean | undefined;
+  roleKeys?: string[] | undefined;
 }
 
 export class UserUseCases {
@@ -252,11 +253,23 @@ export class UserUseCases {
     return this.paginated(presentedItems, presentedTotal, input);
   }
 
-  async dashboard(input: DashboardInput) {
+  async dashboard(input: DashboardInput, actor?: AuthenticatedUser) {
     const range = dateRangeOrCurrentDay(input);
     const createdAt = buildCreatedAtFilter(range);
     const rangeDays = this.rangeDays(range);
-    const where = { deletedAt: null };
+    const roleKeys = this.dashboardRoleKeys(input.roleKeys, actor);
+    const where = {
+      deletedAt: null,
+      ...(roleKeys ? {
+        roleAssignments: {
+          some: {
+            role: {
+              key: { in: roleKeys }
+            }
+          }
+        }
+      } : {})
+    };
     const users = await this.prisma.user.findMany({
       where,
       include: {
@@ -759,6 +772,24 @@ export class UserUseCases {
 
     if (this.hasAnyRole(actor, ['seller'])) {
       return ['messenger'];
+    }
+
+    return [];
+  }
+
+  private dashboardRoleKeys(requestedRoleKeys: string[] | undefined, actor?: AuthenticatedUser) {
+    const normalizedRequested = requestedRoleKeys
+      ?.map((role) => role.trim().toLowerCase())
+      .filter(Boolean);
+
+    if (this.hasAnyRole(actor, ['admin'])) {
+      return normalizedRequested?.length ? normalizedRequested : undefined;
+    }
+
+    if (this.hasAnyRole(actor, ['supervisor'])) {
+      const allowed = ['employee', 'supervisor'];
+      if (!normalizedRequested?.length) return allowed;
+      return normalizedRequested.filter((role) => allowed.includes(role));
     }
 
     return [];

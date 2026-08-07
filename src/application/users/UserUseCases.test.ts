@@ -220,6 +220,71 @@ describe('UserUseCases listOptions', () => {
   });
 });
 
+describe('UserUseCases dashboard', () => {
+  it('limita el listado de usuarios del supervisor a vendedores y supervisores', async () => {
+    const actor: AuthenticatedUser = {
+      id: 'supervisor-1',
+      email: 'supervisor@oroaroma.local',
+      name: 'Supervisor',
+      status: 'ACTIVE',
+      statusLabel: 'Activo',
+      roles: [{ roleKey: 'supervisor', scope: 'own' }],
+      permissions: [{ key: 'users:read:global', resource: 'users', action: 'read', scope: 'global' }]
+    };
+    const calls: { findMany?: unknown; count?: unknown } = {};
+    const prisma = {
+      user: {
+        findMany: vi.fn(async (args: unknown) => {
+          calls.findMany = args;
+          return [userOption('employee-1', 'Vendedor', 'employee')];
+        }),
+        count: vi.fn(async (args: unknown) => {
+          calls.count = args;
+          return 1;
+        })
+      },
+      sale: {
+        findMany: vi.fn(async () => []),
+        aggregate: vi.fn(async () => ({
+          _count: { id: 0 },
+          _sum: {
+            amountCash: new Prisma.Decimal(0),
+            deliveryPay: new Prisma.Decimal(0)
+          }
+        }))
+      }
+    };
+    const users = new UserUseCases(prisma as unknown as PrismaClient, {} as PasswordHasher);
+
+    await users.dashboard({ page: 1, pageSize: 100, roleKeys: ['admin', 'seller', 'employee'] }, actor);
+
+    expect(calls.findMany).toMatchObject({
+      where: {
+        deletedAt: null,
+        roleAssignments: {
+          some: {
+            role: {
+              key: { in: ['employee'] }
+            }
+          }
+        }
+      }
+    });
+    expect(calls.count).toMatchObject({
+      where: {
+        deletedAt: null,
+        roleAssignments: {
+          some: {
+            role: {
+              key: { in: ['employee'] }
+            }
+          }
+        }
+      }
+    });
+  });
+});
+
 function userOption(id: string, name: string, roleKey: string) {
   return {
     id,

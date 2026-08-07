@@ -8,6 +8,14 @@ const userOptionQuerySchema = dateRangePaginationQuerySchema.extend({
   includeStats: z.preprocess((value) => value === true || value === 'true', z.boolean()).optional()
 });
 
+const userDashboardQuerySchema = dateRangePaginationQuerySchema.extend({
+  roleKeys: z.preprocess((value) => {
+    if (Array.isArray(value)) return value.flatMap((item) => String(item).split(','));
+    if (typeof value === 'string') return value.split(',');
+    return undefined;
+  }, z.array(z.string().trim().min(1)).optional())
+});
+
 export async function userRoutes(app: FastifyInstance) {
   const users = new UserUseCases(app.container.prisma, app.container.passwordHasher);
 
@@ -15,8 +23,8 @@ export async function userRoutes(app: FastifyInstance) {
     '/users',
     { preHandler: [app.authenticate, app.authorize('users', 'read')] },
     async (request) => {
-      const query = dateRangePaginationQuerySchema.parse(request.query);
-      return { data: await users.dashboard(query) };
+      const query = userDashboardQuerySchema.parse(request.query);
+      return { data: await users.dashboard(query, request.authUser) };
     }
   );
 

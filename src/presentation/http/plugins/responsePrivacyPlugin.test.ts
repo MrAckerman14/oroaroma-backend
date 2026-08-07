@@ -18,6 +18,8 @@ describe('sanitizeResponse', () => {
           email: 'otro@oroaroma.local',
           purchasePrice: '100',
           purchaseUnitPrice: '100',
+          purchase_price: '100',
+          purchase_unit_price: '100',
           salePrice: '175',
           stock: 5
         }]
