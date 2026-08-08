@@ -790,12 +790,6 @@ export class UserUseCases {
       return normalizedRequested?.length ? normalizedRequested : undefined;
     }
 
-    if (this.hasAnyRole(actor, ['supervisor'])) {
-      const allowed = ['employee', 'supervisor'];
-      if (!normalizedRequested?.length) return allowed;
-      return normalizedRequested.filter((role) => allowed.includes(role));
-    }
-
     return [];
   }
 

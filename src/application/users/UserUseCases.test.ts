@@ -206,7 +206,7 @@ describe('UserUseCases listOptions', () => {
 });
 
 describe('UserUseCases dashboard', () => {
-  it('limita el listado de usuarios del supervisor a vendedores y supervisores', async () => {
+  it('no entrega listado de usuarios al supervisor', async () => {
     const actor: AuthenticatedUser = {
       id: 'supervisor-1',
       email: 'supervisor@oroaroma.local',
@@ -221,11 +221,11 @@ describe('UserUseCases dashboard', () => {
       user: {
         findMany: vi.fn(async (args: unknown) => {
           calls.findMany = args;
-          return [userOption('employee-1', 'Vendedor', 'employee')];
+          return [];
         }),
         count: vi.fn(async (args: unknown) => {
           calls.count = args;
-          return 1;
+          return 0;
         })
       },
       sale: {
@@ -241,7 +241,7 @@ describe('UserUseCases dashboard', () => {
     };
     const users = new UserUseCases(prisma as unknown as PrismaClient, {} as PasswordHasher);
 
-    await users.dashboard({ page: 1, pageSize: 100, roleKeys: ['admin', 'seller', 'employee'] }, actor);
+    const result = await users.dashboard({ page: 1, pageSize: 100, roleKeys: ['admin', 'seller', 'employee'] }, actor);
 
     expect(calls.findMany).toMatchObject({
       where: {
@@ -249,7 +249,7 @@ describe('UserUseCases dashboard', () => {
         roleAssignments: {
           some: {
             role: {
-              key: { in: ['employee'] }
+              key: { in: [] }
             }
           }
         }
@@ -261,12 +261,14 @@ describe('UserUseCases dashboard', () => {
         roleAssignments: {
           some: {
             role: {
-              key: { in: ['employee'] }
+              key: { in: [] }
             }
           }
         }
       }
     });
+    expect(result.items).toEqual([]);
+    expect(result.pagination.total).toBe(0);
   });
 });
 
