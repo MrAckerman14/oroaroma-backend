@@ -10,6 +10,7 @@ import {
   roleLabels,
   userStatusLabels
 } from '../../shared/utils/spanishLabels.js';
+import { canonicalRoleKey, hasRoleKey, roleQueryKeys } from '../../shared/utils/roleKeys.js';
 import type { PasswordHasher } from '../../infrastructure/security/PasswordHasher.js';
 import type { AuthenticatedUser } from '../../types/rbac.js';
 
@@ -151,7 +152,7 @@ export class UserUseCases {
     const createdAt = buildCreatedAtFilter(range);
     const visibleRoleKeys = this.visibleOptionRoleKeys(actor);
     const isAdmin = this.hasAnyRole(actor, ['admin']);
-    const isSeller = this.hasAnyRole(actor, ['seller']);
+    const isSeller = this.hasAnyRole(actor, ['collaborator']);
     const isMessenger = this.hasAnyRole(actor, ['messenger']);
     const canIncludeOptionStats = Boolean(input.includeStats) && (isAdmin || this.hasAnyRole(actor, ['employee', 'supervisor', 'messenger']));
 
@@ -207,12 +208,12 @@ export class UserUseCases {
 
     const visibleItems = isMessenger && actor?.id
       ? items.filter((user) => {
-        const roleKeys = user.roleAssignments.map((assignment) => assignment.role.key);
+        const roleKeys = user.roleAssignments.map((assignment) => canonicalRoleKey(assignment.role.key));
         return user.id === actor.id && roleKeys.includes('messenger');
       })
       : items;
     const presentedItems = await Promise.all(visibleItems.map(async (user) => {
-      const roleKeys = user.roleAssignments.map((assignment) => assignment.role.key);
+      const roleKeys = user.roleAssignments.map((assignment) => canonicalRoleKey(assignment.role.key));
       const roleNames = user.roleAssignments.map((assignment) => this.roleDisplayName(assignment.role.key, assignment.role.name));
       const roleAssignments = user.roleAssignments.map((assignment) => ({
         ...assignment,
@@ -228,10 +229,8 @@ export class UserUseCases {
         ...(isAdmin ? {
           email: user.email,
           status: user.status,
-          roles: roleKeys,
           roleAssignments
         } : {}),
-        roleKey: roleKeys[0] ?? null,
         role: roleNames[0] ?? null,
         roleName: roleNames[0] ?? null,
         roleLabel: roleNames[0] ?? null,
@@ -290,14 +289,14 @@ export class UserUseCases {
     const total = await this.prisma.user.count({ where });
 
     const items = await Promise.all(users.map(async (user) => {
-      const roleKeys = user.roleAssignments.map((assignment) => assignment.role.key);
+      const roleKeys = user.roleAssignments.map((assignment) => canonicalRoleKey(assignment.role.key));
       const roleNames = user.roleAssignments.map((assignment) => this.roleDisplayName(assignment.role.key, assignment.role.name));
       const [employeeStats, messengerStats, sellerStats] = await Promise.all([
         this.salesStats({ employeeId: user.id }, createdAt, rangeDays),
         this.messengerStats(user.id, createdAt),
         this.sellerStats(user.id, createdAt)
       ]);
-      const primaryStats = roleKeys.includes('seller') ? sellerStats : employeeStats;
+      const primaryStats = roleKeys.includes('collaborator') ? sellerStats : employeeStats;
       const deliveriesCount = roleKeys.includes('messenger')
         ? messengerStats.completedDeliveries
         : primaryStats.orders;
@@ -308,8 +307,6 @@ export class UserUseCases {
         email: user.email,
         status: user.status,
         statusLabel: labelFromMap(userStatusLabels, user.status),
-        roles: roleKeys,
-        roleKey: roleKeys[0] ?? null,
         role: roleNames[0] ?? null,
         roleName: roleNames[0] ?? null,
         roleLabel: roleNames[0] ?? null,
@@ -425,7 +422,7 @@ export class UserUseCases {
 
   async assignRole(userId: string, input: AssignRoleInput) {
     await this.findById(userId);
-    const role = await this.prisma.role.findUnique({ where: { key: input.roleKey } });
+    const role = await this.findRoleByInputKey(input.roleKey);
     if (!role) throw new ValidationAppError('Rol inexistente');
 
     if (input.scope === 'STORE' && !input.storeId) {
@@ -451,7 +448,7 @@ export class UserUseCases {
 
   async replaceRole(userId: string, input: AssignRoleInput) {
     await this.findById(userId);
-    const role = await this.prisma.role.findUnique({ where: { key: input.roleKey } });
+    const role = await this.findRoleByInputKey(input.roleKey);
     if (!role) throw new ValidationAppError('Rol inexistente');
 
     if (input.scope === 'STORE' && !input.storeId) {
@@ -771,11 +768,11 @@ export class UserUseCases {
 
   private visibleOptionRoleKeys(actor?: AuthenticatedUser) {
     if (this.hasAnyRole(actor, ['admin'])) {
-      return ['admin', 'employee', 'supervisor', 'seller', 'messenger'];
+      return ['admin', 'employee', 'supervisor', ...roleQueryKeys('collaborator'), 'messenger'];
     }
 
     if (this.hasAnyRole(actor, ['employee', 'supervisor'])) {
-      return ['seller', 'messenger'];
+      return [...roleQueryKeys('collaborator'), 'messenger'];
     }
 
     return [];
@@ -787,14 +784,14 @@ export class UserUseCases {
       .filter(Boolean);
 
     if (this.hasAnyRole(actor, ['admin'])) {
-      return normalizedRequested?.length ? normalizedRequested : undefined;
+      return normalizedRequested?.length ? normalizedRequested.flatMap((role) => roleQueryKeys(role)) : undefined;
     }
 
     return [];
   }
 
   private hasAnyRole(actor: AuthenticatedUser | undefined, roles: string[]) {
-    return actor?.roles.some((role) => roles.includes(role.roleKey)) ?? false;
+    return actor?.roles.some((role) => hasRoleKey(role.roleKey, roles)) ?? false;
   }
 
   private presentUser<T extends { status: string }>(user: T) {
@@ -807,15 +804,12 @@ export class UserUseCases {
         role: assignment.role ? this.presentRole(assignment.role) : assignment.role
       }))
       : undefined;
-    const roleKeys = roleAssignments?.map((assignment) => assignment.role?.key).filter(Boolean) ?? [];
     const firstRole = roleAssignments?.[0]?.role;
 
     return {
       ...user,
       ...(roleAssignments ? { roleAssignments } : {}),
       ...(roleAssignments ? {
-        roles: roleKeys,
-        roleKey: roleKeys[0] ?? null,
         role: firstRole?.name ?? null,
         roleName: firstRole?.name ?? null,
         roleLabel: firstRole?.name ?? null,
@@ -827,8 +821,9 @@ export class UserUseCases {
 
   private presentRole<T extends { key: string; name: string }>(role: T) {
     const name = this.roleDisplayName(role.key, role.name);
+    const { key: _key, ...rest } = role;
     return {
-      ...role,
+      ...rest,
       name,
       label: name,
       displayName: name
@@ -836,7 +831,17 @@ export class UserUseCases {
   }
 
   private roleDisplayName(roleKey: string, fallback?: string | null) {
-    return roleLabels[roleKey] ?? fallback ?? roleKey;
+    const canonical = canonicalRoleKey(roleKey);
+    return roleLabels[canonical] ?? roleLabels[roleKey] ?? fallback ?? roleKey;
+  }
+
+  private async findRoleByInputKey(roleKey: string) {
+    const keys = roleQueryKeys(roleKey);
+    return this.prisma.role.findFirst({
+      where: {
+        key: { in: keys }
+      }
+    });
   }
 
   private presentPermission<T extends { resource: string; action: string; scope: string }>(permission: T) {

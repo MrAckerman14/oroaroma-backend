@@ -89,7 +89,7 @@ const roleDefinitions = {
       'cash-closures:read:own'
     ]
   },
-  seller: {
+  collaborator: {
     name: 'Colaborador',
     description: 'Consulta y da seguimiento a sus ventas asignadas',
     permissions: [

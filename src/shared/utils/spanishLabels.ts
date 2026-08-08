@@ -26,6 +26,7 @@ export const roleLabels: Record<string, string> = {
   admin: 'Administrador',
   employee: 'Vendedor',
   supervisor: 'Supervisor',
+  collaborator: 'Colaborador',
   seller: 'Colaborador',
   messenger: 'Mensajero'
 };

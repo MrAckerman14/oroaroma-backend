@@ -6,6 +6,7 @@ import {
   permissionScopeLabels,
   userStatusLabels
 } from '../../shared/utils/spanishLabels.js';
+import { canonicalRoleKey } from '../../shared/utils/roleKeys.js';
 import type { AuthenticatedUser, PermissionDescriptor, UserRoleContext } from '../../types/rbac.js';
 
 type UserWithAccess = NonNullable<Awaited<ReturnType<PrismaUserRepository['findRawUserByEmail']>>>;
@@ -38,7 +39,7 @@ export class PrismaUserRepository {
     });
 
     const roles: UserRoleContext[] = activeAssignments.map((assignment) => ({
-      roleKey: assignment.role.key,
+      roleKey: canonicalRoleKey(assignment.role.key),
       scope: assignment.scope.toLowerCase() as UserRoleContext['scope'],
       scopeLabel: labelFromMap(permissionScopeLabels, assignment.scope.toLowerCase()),
       ...(assignment.storeId ? { storeId: assignment.storeId } : {}),

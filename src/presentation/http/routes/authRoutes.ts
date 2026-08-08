@@ -7,6 +7,10 @@ import {
   registerSchema,
   updateMeSchema
 } from '../schemas/authSchemas.js';
+import { canonicalRoleKey } from '../../../shared/utils/roleKeys.js';
+import { roleLabels } from '../../../shared/utils/spanishLabels.js';
+import type { AuthenticatedUser } from '../../../types/rbac.js';
+import type { AuthSession } from '../../../types/auth.js';
 
 export async function authRoutes(app: FastifyInstance) {
   const users = new UserUseCases(app.container.prisma, app.container.passwordHasher);
@@ -18,7 +22,7 @@ export async function authRoutes(app: FastifyInstance) {
       ipAddress: request.ip
     });
 
-    return reply.send(session);
+    return reply.send(publicSession(session));
   });
 
   app.post('/auth/register', async (request, reply) => {
@@ -42,10 +46,11 @@ export async function authRoutes(app: FastifyInstance) {
 
   app.post('/auth/refresh', async (request) => {
     const input = refreshTokenSchema.parse(request.body);
-    return app.container.auth.login.refresh(input.refreshToken, {
+    const session = await app.container.auth.login.refresh(input.refreshToken, {
       ...(request.headers['user-agent'] ? { userAgent: request.headers['user-agent'] } : {}),
       ipAddress: request.ip
     });
+    return publicSession(session);
   });
 
   app.post('/auth/logout', async (request, reply) => {
@@ -55,7 +60,7 @@ export async function authRoutes(app: FastifyInstance) {
   });
 
   app.get('/auth/me', { preHandler: [app.authenticate] }, async (request) => ({
-    user: request.authUser
+    user: publicAuthUser(request.authUser!)
   }));
 
   app.put('/auth/me', { preHandler: [app.authenticate] }, async (request) => {
@@ -73,4 +78,30 @@ export async function authRoutes(app: FastifyInstance) {
     await users.changePassword(request.authUser!.id, input.currentPassword, input.newPassword);
     return reply.status(204).send();
   });
+}
+
+function publicSession(session: AuthSession) {
+  return {
+    ...session,
+    user: publicAuthUser(session.user)
+  };
+}
+
+function publicAuthUser(user: AuthenticatedUser) {
+  const roleNames = user.roles
+    .map((role) => roleLabels[canonicalRoleKey(role.roleKey)])
+    .filter(Boolean);
+  const primaryRole = roleNames[0] ?? null;
+
+  return {
+    id: user.id,
+    email: user.email,
+    name: user.name,
+    status: user.status,
+    statusLabel: user.statusLabel,
+    role: primaryRole,
+    roleName: primaryRole,
+    roleLabel: primaryRole,
+    roleDisplayName: primaryRole
+  };
 }

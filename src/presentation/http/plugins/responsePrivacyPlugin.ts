@@ -1,6 +1,6 @@
 import type { FastifyInstance, FastifyRequest } from 'fastify';
+import { hasRoleKey } from '../../../shared/utils/roleKeys.js';
 
-const adminRoleKeys = new Set(['admin']);
 const globallySensitiveKeys = new Set([
   'passwordHash',
   'purchasePrice',
@@ -34,7 +34,7 @@ export function registerResponsePrivacyHook(app: FastifyInstance) {
 
 export function sanitizeResponse(value: unknown, request: FastifyRequest): unknown {
   const actor = request.authUser;
-  const isAdmin = actor?.roles.some((role) => adminRoleKeys.has(role.roleKey)) ?? false;
+  const isAdmin = actor?.roles.some((role) => hasRoleKey(role.roleKey, ['admin'])) ?? false;
 
   if (isAdmin || !actor) return value;
 

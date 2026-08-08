@@ -5,25 +5,31 @@ import type { AuthenticatedUser } from '../../types/rbac.js';
 import { UserUseCases } from './UserUseCases.js';
 
 describe('UserUseCases role labels', () => {
-  it('presenta los nombres nuevos usando la llave interna del rol', () => {
+  it('presenta nombres publicos sin exponer la llave interna del rol', () => {
     const users = new UserUseCases({} as PrismaClient, {} as PasswordHasher);
     const presentRole = (users as unknown as {
-      presentRole: (role: { key: string; name: string }) => { name: string; label: string; displayName: string };
+      presentRole: (role: { key: string; name: string }) => { key?: string; name: string; label: string; displayName: string };
     }).presentRole.bind(users);
 
-    expect(presentRole({ key: 'employee', name: 'Colaborador' })).toMatchObject({
+    const employeeRole = presentRole({ key: 'employee', name: 'Colaborador' });
+    expect(employeeRole).toMatchObject({
       name: 'Vendedor',
       label: 'Vendedor',
       displayName: 'Vendedor'
     });
-    expect(presentRole({ key: 'supervisor', name: 'Supervisor' })).toMatchObject({
+    expect(employeeRole).not.toHaveProperty('key');
+    const supervisorRole = presentRole({ key: 'supervisor', name: 'Supervisor' });
+    expect(supervisorRole).toMatchObject({
       name: 'Supervisor'
     });
-    expect(presentRole({ key: 'seller', name: 'Vendedor' })).toMatchObject({
+    expect(supervisorRole).not.toHaveProperty('key');
+    const collaboratorRole = presentRole({ key: 'seller', name: 'Vendedor' });
+    expect(collaboratorRole).toMatchObject({
       name: 'Colaborador',
       label: 'Colaborador',
       displayName: 'Colaborador'
     });
+    expect(collaboratorRole).not.toHaveProperty('key');
   });
 });
 
@@ -109,7 +115,7 @@ describe('UserUseCases listOptions', () => {
             roleAssignments: {
               some: {
                 role: {
-                  key: { in: ['seller', 'messenger'] }
+                  key: { in: ['collaborator', 'seller', 'messenger'] }
                 }
               }
             }
@@ -117,13 +123,12 @@ describe('UserUseCases listOptions', () => {
         ]
       }
     });
-    expect(result.items.map((item) => item.roleKey)).toEqual(['seller', 'messenger']);
     expect(result.items[0]).toMatchObject({
       id: 'seller-1',
       name: 'Colaborador',
-      roleKey: 'seller',
       roleName: 'Colaborador'
     });
+    expect(result.items[0]).not.toHaveProperty('roleKey');
     expect(result.items[0]).not.toHaveProperty('email');
     expect(result.items[0]).not.toHaveProperty('status');
     expect(result.items[0]).not.toHaveProperty('roles');

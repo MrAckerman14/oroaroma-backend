@@ -3,6 +3,7 @@ import { env } from '../../config/env.js';
 import { NotFoundError, ValidationAppError } from '../../shared/errors/AppError.js';
 import { buildCreatedAtFilter, currentCalendarDayRange, dateRangeOrCurrentDay, parseDateRange } from '../../shared/utils/dateRange.js';
 import { cashClosureStatusLabels, labelFromMap, paymentMethodLabels, saleStatusLabels } from '../../shared/utils/spanishLabels.js';
+import { hasRoleKey } from '../../shared/utils/roleKeys.js';
 import type { AuthenticatedUser } from '../../types/rbac.js';
 
 export interface DateRangeInput {
@@ -747,7 +748,7 @@ export class ReportUseCases {
   }
 
   private canViewCashDetail(actor: AuthenticatedUser, detail: 'messengers' | 'sellers' | 'employees') {
-    if (detail === 'messengers' && this.hasAnyRole(actor, ['admin', 'employee', 'supervisor', 'seller', 'messenger'])) {
+    if (detail === 'messengers' && this.hasAnyRole(actor, ['admin', 'employee', 'supervisor', 'collaborator', 'messenger'])) {
       return true;
     }
 
@@ -768,7 +769,7 @@ export class ReportUseCases {
   }
 
   private hasAnyRole(actor: AuthenticatedUser, roles: string[]) {
-    return actor.roles.some((role) => roles.includes(role.roleKey));
+    return actor.roles.some((role) => hasRoleKey(role.roleKey, roles));
   }
 
   private canReadGlobalCashClosures(actor: AuthenticatedUser) {

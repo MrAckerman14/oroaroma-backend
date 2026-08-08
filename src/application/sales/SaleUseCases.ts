@@ -1,6 +1,7 @@
 import { Prisma, type PrismaClient, type SaleStatus } from '@prisma/client';
 import { ForbiddenError, NotFoundError, ValidationAppError } from '../../shared/errors/AppError.js';
 import { buildCreatedAtFilter, dateRangeOrCurrentDay } from '../../shared/utils/dateRange.js';
+import { hasRoleKey } from '../../shared/utils/roleKeys.js';
 import type { AuthenticatedUser } from '../../types/rbac.js';
 import { presentSale } from './salePresenter.js';
 
@@ -246,7 +247,7 @@ export class SaleUseCases {
   }
 
   private hasAnyRole(actor: AuthenticatedUser, roles: string[]) {
-    return actor.roles.some((role) => roles.includes(role.roleKey));
+    return actor.roles.some((role) => hasRoleKey(role.roleKey, roles));
   }
 
   private saleIncludes() {

@@ -7,6 +7,7 @@ import type { UploadFileInput } from '../../../application/files/StorageService.
 import { normalizedUploadPublicBasePath } from '../../../config/env.js';
 import { resolveUploadRoot } from '../../../infrastructure/storage/storageFactory.js';
 import { buildZipArchive, type ZipFileInput } from '../../../shared/utils/zip.js';
+import { canonicalRoleKey, hasRoleKey } from '../../../shared/utils/roleKeys.js';
 import { idParamsSchema } from '../schemas/commonSchemas.js';
 import { createStoreSchema, storeListQuerySchema, updateStoreSchema } from '../schemas/storeSchemas.js';
 
@@ -229,12 +230,12 @@ async function canReadStores(request: FastifyRequest) {
     'administrador',
     'employee',
     'empleado',
+    'collaborator',
     'colaborador',
     'supervisor',
-    'seller',
     'vendedor'
   ]);
-  const roleKeys = actor?.roles.map((role) => role.roleKey.toLowerCase()) ?? [];
+  const roleKeys = actor?.roles.map((role) => canonicalRoleKey(role.roleKey)) ?? [];
   const canReadByPermission = actor?.permissions.some((permission) => {
     return permission.resource === 'stores' && permission.action === 'read';
   }) ?? false;
@@ -257,7 +258,7 @@ async function canReadStores(request: FastifyRequest) {
     });
 
     canReadByRole = activeAssignments.some((assignment) => {
-      return readableRoles.has(assignment.role.key.toLowerCase())
+      return readableRoles.has(canonicalRoleKey(assignment.role.key))
         || readableRoles.has(assignment.role.name.toLowerCase());
     });
   }
@@ -268,7 +269,7 @@ async function canReadStores(request: FastifyRequest) {
 }
 
 function canReadSensitiveStorePrices(actor: NonNullable<FastifyRequest['authUser']>) {
-  return actor.roles.some((role) => role.roleKey === 'admin');
+  return actor.roles.some((role) => hasRoleKey(role.roleKey, ['admin']));
 }
 
 async function parseCreateStoreRequest(request: FastifyRequest) {
