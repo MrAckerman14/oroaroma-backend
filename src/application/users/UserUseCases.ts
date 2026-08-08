@@ -152,7 +152,13 @@ export class UserUseCases {
     const visibleRoleKeys = this.visibleOptionRoleKeys(actor);
     const isAdmin = this.hasAnyRole(actor, ['admin']);
     const isSeller = this.hasAnyRole(actor, ['seller']);
+    const isMessenger = this.hasAnyRole(actor, ['messenger']);
     const canIncludeOptionStats = Boolean(input.includeStats) && (isAdmin || this.hasAnyRole(actor, ['employee', 'supervisor', 'messenger']));
+
+    if (isSeller) {
+      return this.paginated([], 0, input);
+    }
+
     const where = {
       deletedAt: null,
       status: 'ACTIVE' as const,
@@ -169,7 +175,7 @@ export class UserUseCases {
               }
             }
           },
-          ...(isSeller && actor?.id ? [{ id: actor.id }] : [])
+          ...(isMessenger && actor?.id ? [{ id: actor.id }] : [])
         ]
       } : {})
     };
@@ -199,10 +205,10 @@ export class UserUseCases {
       this.prisma.user.count({ where })
     ]);
 
-    const visibleItems = isSeller && actor?.id
+    const visibleItems = isMessenger && actor?.id
       ? items.filter((user) => {
         const roleKeys = user.roleAssignments.map((assignment) => assignment.role.key);
-        return user.id === actor.id || roleKeys.includes('messenger');
+        return user.id === actor.id && roleKeys.includes('messenger');
       })
       : items;
     const presentedItems = await Promise.all(visibleItems.map(async (user) => {
@@ -249,7 +255,7 @@ export class UserUseCases {
       };
     }));
 
-    const presentedTotal = isSeller ? presentedItems.length : total;
+    const presentedTotal = isMessenger ? presentedItems.length : total;
     return this.paginated(presentedItems, presentedTotal, input);
   }
 
@@ -768,10 +774,6 @@ export class UserUseCases {
 
     if (this.hasAnyRole(actor, ['employee', 'supervisor'])) {
       return ['seller', 'messenger'];
-    }
-
-    if (this.hasAnyRole(actor, ['seller'])) {
-      return ['messenger'];
     }
 
     return [];

@@ -28,7 +28,7 @@ describe('UserUseCases role labels', () => {
 });
 
 describe('UserUseCases listOptions', () => {
-  it('incluye al colaborador autenticado y los mensajeros para crear ventas', async () => {
+  it('no entrega usuarios al colaborador en el endpoint de opciones', async () => {
     const actor: AuthenticatedUser = {
       id: 'seller-1',
       email: 'seller@oroaroma.local',
@@ -40,18 +40,8 @@ describe('UserUseCases listOptions', () => {
     };
     const prisma = {
       user: {
-        findMany: async (args: unknown) => {
-          calls.findMany = args;
-          return [
-            userOption('seller-1', 'Colaborador', 'seller'),
-            userOption('messenger-1', 'Mensajero', 'messenger'),
-            userOption('seller-2', 'Otro colaborador', 'seller')
-          ];
-        },
-        count: async (args: unknown) => {
-          calls.count = args;
-          return 2;
-        }
+        findMany: vi.fn(),
+        count: vi.fn()
       },
       sale: {
         aggregate: vi.fn(async () => ({
@@ -64,32 +54,13 @@ describe('UserUseCases listOptions', () => {
       }
     };
     const users = new UserUseCases(prisma as unknown as PrismaClient, {} as PasswordHasher);
-    const calls: { findMany?: unknown; count?: unknown } = {};
 
     const result = await users.listOptions({ page: 1, pageSize: 100 }, actor);
 
-    expect(calls.findMany).toMatchObject({
-      where: {
-        deletedAt: null,
-        status: 'ACTIVE',
-        OR: [
-          {
-            roleAssignments: {
-              some: {
-                role: {
-                  key: { in: ['messenger'] }
-                }
-              }
-            }
-          },
-          { id: 'seller-1' }
-        ]
-      }
-    });
-    expect(result.items.map((item) => item.roleKey)).toEqual(['seller', 'messenger']);
-    expect(result.items.map((item) => item.email)).toEqual([null, null]);
-    expect(result.items.map((item) => item.id)).not.toContain('seller-2');
-    expect(result.items[1]).not.toHaveProperty('pendingDeliveryPay');
+    expect(result.items).toEqual([]);
+    expect(result.pagination.total).toBe(0);
+    expect(prisma.user.findMany).not.toHaveBeenCalled();
+    expect(prisma.user.count).not.toHaveBeenCalled();
     expect(prisma.sale.aggregate).not.toHaveBeenCalled();
   });
 
