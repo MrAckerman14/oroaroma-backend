@@ -3,6 +3,7 @@ import { z } from 'zod';
 import { UserUseCases } from '../../../application/users/UserUseCases.js';
 import { dateRangePaginationQuerySchema, idParamsSchema } from '../schemas/commonSchemas.js';
 import { assignRoleSchema, createUserSchema, updateUserSchema } from '../schemas/userSchemas.js';
+import { ForbiddenError } from '../../../shared/errors/AppError.js';
 
 const userOptionQuerySchema = dateRangePaginationQuerySchema.extend({
   includeStats: z.preprocess((value) => value === true || value === 'true', z.boolean()).optional()
@@ -23,6 +24,12 @@ export async function userRoutes(app: FastifyInstance) {
     '/users',
     { preHandler: [app.authenticate, app.authorize('users', 'read')] },
     async (request) => {
+      const roleKeys = request.authUser?.roles.map((role) => role.roleKey) ?? [];
+      const canReadUserDashboard = roleKeys.includes('admin') || roleKeys.includes('supervisor');
+      if (!canReadUserDashboard) {
+        throw new ForbiddenError('Permiso requerido para leer usuarios');
+      }
+
       const query = userDashboardQuerySchema.parse(request.query);
       return { data: await users.dashboard(query, request.authUser) };
     }

@@ -225,15 +225,17 @@ export class UserUseCases {
       const base = {
         id: user.id,
         name: user.name,
-        email: isAdmin ? user.email : null,
-        status: user.status,
-        roles: roleKeys,
+        ...(isAdmin ? {
+          email: user.email,
+          status: user.status,
+          roles: roleKeys,
+          roleAssignments
+        } : {}),
         roleKey: roleKeys[0] ?? null,
         role: roleNames[0] ?? null,
         roleName: roleNames[0] ?? null,
         roleLabel: roleNames[0] ?? null,
-        roleDisplayName: roleNames[0] ?? null,
-        roleAssignments
+        roleDisplayName: roleNames[0] ?? null
       };
 
       if (!canIncludeOptionStats || !roleKeys.includes('messenger')) {

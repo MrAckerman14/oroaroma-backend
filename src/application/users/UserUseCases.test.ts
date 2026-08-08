@@ -118,6 +118,16 @@ describe('UserUseCases listOptions', () => {
       }
     });
     expect(result.items.map((item) => item.roleKey)).toEqual(['seller', 'messenger']);
+    expect(result.items[0]).toMatchObject({
+      id: 'seller-1',
+      name: 'Colaborador',
+      roleKey: 'seller',
+      roleName: 'Colaborador'
+    });
+    expect(result.items[0]).not.toHaveProperty('email');
+    expect(result.items[0]).not.toHaveProperty('status');
+    expect(result.items[0]).not.toHaveProperty('roles');
+    expect(result.items[0]).not.toHaveProperty('roleAssignments');
   });
 
   it('calcula dinero ganado de mensajero para vendedor solo con sus ventas', async () => {
@@ -188,6 +198,10 @@ describe('UserUseCases listOptions', () => {
       pendingDeliveryPay: new Prisma.Decimal(150),
       pendingMoney: new Prisma.Decimal(1200)
     });
+    expect(result.items[0]).not.toHaveProperty('email');
+    expect(result.items[0]).not.toHaveProperty('status');
+    expect(result.items[0]).not.toHaveProperty('roles');
+    expect(result.items[0]).not.toHaveProperty('roleAssignments');
   });
 });
 
