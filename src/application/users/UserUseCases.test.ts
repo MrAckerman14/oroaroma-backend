@@ -135,7 +135,7 @@ describe('UserUseCases listOptions', () => {
     expect(result.items[0]).not.toHaveProperty('roleAssignments');
   });
 
-  it('calcula dinero ganado de mensajero para vendedor solo con sus ventas', async () => {
+  it('oculta dinero ganado de mensajero al vendedor y mantiene pendientes de sus ventas', async () => {
     const actor: AuthenticatedUser = {
       id: 'employee-1',
       email: 'employee@oroaroma.local',
@@ -196,13 +196,13 @@ describe('UserUseCases listOptions', () => {
     expect(result.items[0]).toMatchObject({
       completedDeliveries: 2,
       deliveriesCount: 2,
-      completedDeliveryPay: new Prisma.Decimal(450),
-      earnedMoney: new Prisma.Decimal(450),
-      messengerEarnings: new Prisma.Decimal(450),
-      totalEarned: new Prisma.Decimal(450),
       pendingDeliveryPay: new Prisma.Decimal(150),
       pendingMoney: new Prisma.Decimal(1200)
     });
+    expect(result.items[0]).not.toHaveProperty('completedDeliveryPay');
+    expect(result.items[0]).not.toHaveProperty('earnedMoney');
+    expect(result.items[0]).not.toHaveProperty('messengerEarnings');
+    expect(result.items[0]).not.toHaveProperty('totalEarned');
     expect(result.items[0]).not.toHaveProperty('email');
     expect(result.items[0]).not.toHaveProperty('status');
     expect(result.items[0]).not.toHaveProperty('roles');

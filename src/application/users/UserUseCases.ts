@@ -155,6 +155,7 @@ export class UserUseCases {
     const isSeller = this.hasAnyRole(actor, ['collaborator']);
     const isMessenger = this.hasAnyRole(actor, ['messenger']);
     const canIncludeOptionStats = Boolean(input.includeStats) && (isAdmin || this.hasAnyRole(actor, ['employee', 'supervisor', 'messenger']));
+    const canViewMessengerEarnedMoney = isAdmin || isMessenger;
 
     if (isSeller) {
       return this.paginated([], 0, input);
@@ -245,10 +246,12 @@ export class UserUseCases {
         ...base,
         completedDeliveries: messengerStats.completedDeliveries,
         deliveriesCount: messengerStats.completedDeliveries,
-        completedDeliveryPay: messengerStats.completedDeliveryPay,
-        earnedMoney: messengerStats.earnedMoney,
-        messengerEarnings: messengerStats.messengerEarnings,
-        totalEarned: messengerStats.totalEarned,
+        ...(canViewMessengerEarnedMoney ? {
+          completedDeliveryPay: messengerStats.completedDeliveryPay,
+          earnedMoney: messengerStats.earnedMoney,
+          messengerEarnings: messengerStats.messengerEarnings,
+          totalEarned: messengerStats.totalEarned
+        } : {}),
         deliveryPayment: messengerStats.deliveryPayment,
         pendingDeliveryPay: messengerStats.pendingDeliveryPay,
         pendingMoney: messengerStats.pendingMoney,
