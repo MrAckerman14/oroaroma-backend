@@ -234,11 +234,15 @@ export class StoreUseCases {
     };
   }
 
-  async listImages() {
-    return this.prisma.store.findMany({
+  async listImages(options: StoreListOptions = {}) {
+    const stockFilter = this.stockFilter(options);
+    const searchFilter = this.searchFilter(options.search);
+    const stores = await this.prisma.store.findMany({
       where: {
         deletedAt: null,
-        imagePath: { not: null }
+        imagePath: { not: null },
+        ...(stockFilter ? { stock: stockFilter } : {}),
+        ...(searchFilter ? searchFilter : {})
       },
       select: {
         id: true,
@@ -247,6 +251,23 @@ export class StoreUseCases {
       },
       orderBy: { name: 'asc' }
     });
+
+    if (!this.hasExplicitSoldRange(options)) return stores;
+
+    const soldQuantities = await this.soldQuantitiesForStores(
+      stores.map((store) => store.id),
+      options
+    );
+
+    return stores
+      .map((store) => ({
+        ...store,
+        quantitySold: soldQuantities.get(store.id) ?? 0
+      }))
+      .sort((a, b) => {
+        if (b.quantitySold !== a.quantitySold) return b.quantitySold - a.quantitySold;
+        return a.name.localeCompare(b.name);
+      });
   }
 
   private async findActive(id: string) {

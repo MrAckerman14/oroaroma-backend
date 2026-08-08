@@ -45,8 +45,15 @@ export async function storeRoutes(app: FastifyInstance) {
   app.get(
     '/stores/images/download',
     { preHandler: [app.authenticate, canReadStores] },
-    async (_request, reply) => {
-      const images = await stores.listImages();
+    async (request, reply) => {
+      const query = storeListQuerySchema.parse(request.query);
+      const images = await stores.listImages({
+        from: query.from,
+        to: query.to,
+        minStock: query.minStock,
+        maxStock: query.maxStock,
+        search: query.search
+      });
       const files: ZipFileInput[] = [];
 
       for (const image of images) {
