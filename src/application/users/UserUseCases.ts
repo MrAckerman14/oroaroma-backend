@@ -790,6 +790,15 @@ export class UserUseCases {
       return normalizedRequested?.length ? normalizedRequested.flatMap((role) => roleQueryKeys(role)) : undefined;
     }
 
+    if (this.hasAnyRole(actor, ['supervisor'])) {
+      const allowedRoleKeys = ['employee', 'supervisor'];
+      const requestedRoleKeys = normalizedRequested?.length
+        ? normalizedRequested.flatMap((role) => roleQueryKeys(role))
+        : allowedRoleKeys;
+
+      return requestedRoleKeys.filter((role) => allowedRoleKeys.includes(canonicalRoleKey(role)));
+    }
+
     return [];
   }
 

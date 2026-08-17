@@ -211,7 +211,7 @@ describe('UserUseCases listOptions', () => {
 });
 
 describe('UserUseCases dashboard', () => {
-  it('no entrega listado de usuarios al supervisor', async () => {
+  it('limita el listado del supervisor a vendedores y supervisores', async () => {
     const actor: AuthenticatedUser = {
       id: 'supervisor-1',
       email: 'supervisor@oroaroma.local',
@@ -222,15 +222,19 @@ describe('UserUseCases dashboard', () => {
       permissions: [{ key: 'users:read:global', resource: 'users', action: 'read', scope: 'global' }]
     };
     const calls: { findMany?: unknown; count?: unknown } = {};
+    const dashboardUsers = [
+      userOption('employee-1', 'Vendedor Uno', 'employee'),
+      userOption('supervisor-2', 'Supervisor Dos', 'supervisor')
+    ];
     const prisma = {
       user: {
         findMany: vi.fn(async (args: unknown) => {
           calls.findMany = args;
-          return [];
+          return dashboardUsers;
         }),
         count: vi.fn(async (args: unknown) => {
           calls.count = args;
-          return 0;
+          return dashboardUsers.length;
         })
       },
       sale: {
@@ -246,7 +250,10 @@ describe('UserUseCases dashboard', () => {
     };
     const users = new UserUseCases(prisma as unknown as PrismaClient, {} as PasswordHasher);
 
-    const result = await users.dashboard({ page: 1, pageSize: 100, roleKeys: ['admin', 'seller', 'employee'] }, actor);
+    const result = await users.dashboard(
+      { page: 1, pageSize: 100, roleKeys: ['admin', 'seller', 'employee', 'supervisor', 'messenger'] },
+      actor
+    );
 
     expect(calls.findMany).toMatchObject({
       where: {
@@ -254,7 +261,7 @@ describe('UserUseCases dashboard', () => {
         roleAssignments: {
           some: {
             role: {
-              key: { in: [] }
+              key: { in: ['employee', 'supervisor'] }
             }
           }
         }
@@ -266,14 +273,55 @@ describe('UserUseCases dashboard', () => {
         roleAssignments: {
           some: {
             role: {
-              key: { in: [] }
+              key: { in: ['employee', 'supervisor'] }
             }
           }
         }
       }
     });
-    expect(result.items).toEqual([]);
-    expect(result.pagination.total).toBe(0);
+    expect(result.items.map((item) => item.roleName)).toEqual(['Vendedor', 'Supervisor']);
+    expect(result.pagination.total).toBe(2);
+  });
+
+  it('usa vendedores y supervisores por defecto para el dashboard de supervisor', async () => {
+    const actor: AuthenticatedUser = {
+      id: 'supervisor-1',
+      email: 'supervisor@oroaroma.local',
+      name: 'Supervisor',
+      status: 'ACTIVE',
+      statusLabel: 'Activo',
+      roles: [{ roleKey: 'supervisor', scope: 'own' }],
+      permissions: [{ key: 'users:read:global', resource: 'users', action: 'read', scope: 'global' }]
+    };
+    const prisma = {
+      user: {
+        findMany: vi.fn(async () => []),
+        count: vi.fn(async () => 0)
+      },
+      sale: {
+        findMany: vi.fn(async () => []),
+        aggregate: vi.fn(async () => ({
+          _count: { id: 0 },
+          _sum: {
+            amountCash: new Prisma.Decimal(0),
+            deliveryPay: new Prisma.Decimal(0)
+          }
+        }))
+      }
+    };
+    const users = new UserUseCases(prisma as unknown as PrismaClient, {} as PasswordHasher);
+
+    await users.dashboard({ page: 1, pageSize: 100 }, actor);
+
+    expect(prisma.user.findMany).toHaveBeenCalledWith(expect.objectContaining({
+      where: expect.objectContaining({
+        roleAssignments: expect.objectContaining({
+          some: expect.objectContaining({
+            role: { key: { in: ['employee', 'supervisor'] } }
+          })
+        })
+      })
+    }));
   });
 });
 

@@ -25,7 +25,7 @@ export async function userRoutes(app: FastifyInstance) {
     '/users',
     { preHandler: [app.authenticate, app.authorize('users', 'read')] },
     async (request) => {
-      const canReadUserDashboard = request.authUser?.roles.some((role) => hasRoleKey(role.roleKey, ['admin'])) ?? false;
+      const canReadUserDashboard = request.authUser?.roles.some((role) => hasRoleKey(role.roleKey, ['admin', 'supervisor'])) ?? false;
       if (!canReadUserDashboard) {
         throw new ForbiddenError('Permiso requerido para leer usuarios');
       }
