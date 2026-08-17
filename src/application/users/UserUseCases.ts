@@ -699,9 +699,8 @@ export class UserUseCases {
   private userStatsAccessWhere(actor?: AuthenticatedUser): Prisma.SaleWhereInput {
     if (!actor) return {};
 
-    const canReadGlobal = actor.permissions.some((permission) => {
-      return permission.key === 'users:read:global' || permission.key === 'reports:cash:global';
-    });
+    const canReadGlobal = this.hasAnyRole(actor, ['admin'])
+      || actor.permissions.some((permission) => permission.key === 'reports:cash:global');
 
     if (canReadGlobal) return {};
 

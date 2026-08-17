@@ -208,6 +208,71 @@ describe('UserUseCases listOptions', () => {
     expect(result.items[0]).not.toHaveProperty('roles');
     expect(result.items[0]).not.toHaveProperty('roleAssignments');
   });
+
+  it('mantiene las estadisticas de mensajero del supervisor limitadas a sus ventas', async () => {
+    const actor: AuthenticatedUser = {
+      id: 'supervisor-1',
+      email: 'supervisor@oroaroma.local',
+      name: 'Supervisor',
+      status: 'ACTIVE',
+      statusLabel: 'Activo',
+      roles: [{ roleKey: 'supervisor', scope: 'own' }],
+      permissions: [{ key: 'users:read:global', resource: 'users', action: 'read', scope: 'global' }]
+    };
+    const aggregate = vi
+      .fn()
+      .mockResolvedValueOnce({
+        _count: { id: 1 },
+        _sum: { deliveryPay: new Prisma.Decimal(250) }
+      })
+      .mockResolvedValueOnce({
+        _count: { id: 0 },
+        _sum: {
+          amountCash: new Prisma.Decimal(900),
+          deliveryPay: new Prisma.Decimal(125)
+        }
+      });
+    const prisma = {
+      user: {
+        findMany: async () => [userOption('messenger-1', 'Mensajero', 'messenger')],
+        count: async () => 1
+      },
+      sale: { aggregate }
+    };
+    const users = new UserUseCases(prisma as unknown as PrismaClient, {} as PasswordHasher);
+
+    const result = await users.listOptions({ page: 1, pageSize: 100, includeStats: true }, actor);
+
+    expect(aggregate).toHaveBeenNthCalledWith(1, expect.objectContaining({
+      where: expect.objectContaining({
+        messengerId: 'messenger-1',
+        status: { in: ['FINALIZED', 'CANCELLED'] },
+        OR: [
+          { employeeId: 'supervisor-1' },
+          { sellerId: 'supervisor-1' },
+          { messengerId: 'supervisor-1' }
+        ]
+      })
+    }));
+    expect(aggregate).toHaveBeenNthCalledWith(2, expect.objectContaining({
+      where: expect.objectContaining({
+        messengerId: 'messenger-1',
+        status: 'DELIVERY_PENDING',
+        OR: [
+          { employeeId: 'supervisor-1' },
+          { sellerId: 'supervisor-1' },
+          { messengerId: 'supervisor-1' }
+        ]
+      })
+    }));
+    expect(result.items[0]).toMatchObject({
+      completedDeliveries: 1,
+      deliveriesCount: 1,
+      pendingDeliveryPay: new Prisma.Decimal(125),
+      pendingMoney: new Prisma.Decimal(900)
+    });
+    expect(result.items[0]).not.toHaveProperty('earnedMoney');
+  });
 });
 
 describe('UserUseCases dashboard', () => {
