@@ -2,7 +2,11 @@
   <aside class="app-menu column no-wrap full-height">
     <div class="menu-brand">
       <div class="row items-center no-wrap">
-        <div>
+        <q-avatar size="46px" class="menu-brand__logo">
+          <img :src="appTheme.logo" :alt="appTheme.name" />
+        </q-avatar>
+
+        <div class="q-ml-md">
           <div class="text-subtitle1 text-weight-bold">{{ appTheme.name }}</div>
           <div class="text-caption text-grey-5">Panel de administración</div>
         </div>
@@ -134,6 +138,11 @@ export default {
   padding: 20px 18px 16px;
   color: var(--app-surface);
   background: var(--app-ink-soft);
+}
+
+.menu-brand__logo {
+  border: 2px solid var(--app-primary);
+  background: var(--app-surface);
 }
 
 .menu-navigation {

@@ -101,10 +101,6 @@ export default {
   },
 
   data() {
-    const today = new Date();
-    const threeYearsAgo = new Date(today);
-    threeYearsAgo.setFullYear(threeYearsAgo.getFullYear() - 1);
-
     return {
       closures: [],
 
@@ -122,9 +118,9 @@ export default {
 
       totalPending: null,
 
-      from: threeYearsAgo.toLocaleDateString("sv-SE"),
+      from: "",
 
-      to: today.toLocaleDateString("sv-SE"),
+      to: "",
     };
   },
 
@@ -148,7 +144,7 @@ export default {
     // CARGAR CIERRES
     // =========================================================
 
-    async loadClosures(params = paginationParams()) {
+    async loadClosures(params = {}) {
       await listAllPages(api, "/cash-closures", params)
         .then((items) => {
           this.closures = items.map(normalizeClosure);
@@ -291,22 +287,18 @@ export default {
     // =========================================================
 
     async filterByDate() {
-      await listAllPages(api, "/cash-closures", {
-        from: this.from,
-        to: this.to,
-      })
-        .then((items) => {
-          this.closures = items.map(normalizeClosure);
-        })
-        .catch((err) => {
-          this.notificationMessage(
-            apiErrorMessage(
-              err,
-              "No hay data"
-            ),
-            "negative"
-          );
-        });
+      const dateRange = this.from && this.to
+        ? { from: this.from, to: this.to }
+        : this.allRecordsDateRange();
+
+      await this.loadClosures(dateRange);
+    },
+
+    allRecordsDateRange() {
+      return {
+        from: "2000-01-01",
+        to: new Date().toLocaleDateString("sv-SE"),
+      };
     },
   },
 };

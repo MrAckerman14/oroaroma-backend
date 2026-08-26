@@ -30,6 +30,7 @@
       :model-value="dialog || dialogEdit"
       :data="data"
       :is-edit="dialogEdit"
+      :loading="savingProduct"
       @update:model-value="setProductDialog"
       @submit="submitProduct"
       @reset="onReset"
@@ -147,6 +148,7 @@ export default {
       deleteDialog: false,
       deleteTarget: null,
       deleting: false,
+      savingProduct: false,
       rows: [],
       loadingProducts: false,
       downloadAllLoading: false,
@@ -267,13 +269,15 @@ export default {
       if (!value) this.onReset();
     },
 
-    submitProduct() {
+    async submitProduct() {
+      if (this.savingProduct) return;
+
       if (this.dialogEdit) {
-        this.editProduct();
+        await this.editProduct();
         return;
       }
 
-      this.onSubmit();
+      await this.onSubmit();
     },
 
     async onProductsRequest(props) {
@@ -390,12 +394,14 @@ export default {
 
     async onSubmit() {
       if (!this.auth.isAdmin) return;
+      if (this.savingProduct) return;
 
       if (this.accept !== true) {
         try {
+          this.savingProduct = true;
           const res = await api.post("/stores", storeFormData(this.data));
           this.notificationMessage("Producto agregado!", "positive");
-          this.getProducts();
+          await this.getProducts();
           this.onReset();
         } catch (err) {
           console.error("Error al agregar producto:", err);
@@ -403,6 +409,8 @@ export default {
             apiErrorMessage(err, "Error al agregar"),
             "negative"
           );
+        } finally {
+          this.savingProduct = false;
         }
       }
     },
@@ -448,29 +456,31 @@ export default {
 
     async editProduct() {
       if (!this.auth.isAdmin) return;
+      if (this.savingProduct) return;
 
       const id = this.data.id;
 
-      api
-        .put(`/stores/${id}`, storePayload(this.data))
-        .then(async () => {
-          if (this.data.file instanceof File) {
-            const imageData = new FormData();
-            imageData.append("image", this.data.file);
-            await api.post(`/stores/${id}/image`, imageData);
-          }
-        })
-        .then(() => {
-          this.notificationMessage("Producto actualizado", "positive");
-          this.onReset();
-          this.getProducts();
-        })
-        .catch((err) => {
-          this.notificationMessage(
-            apiErrorMessage(err, "Error al actualizar"),
-            "negative"
-          );
-        });
+      try {
+        this.savingProduct = true;
+        await api.put(`/stores/${id}`, storePayload(this.data));
+
+        if (this.data.file instanceof File) {
+          const imageData = new FormData();
+          imageData.append("image", this.data.file);
+          await api.post(`/stores/${id}/image`, imageData);
+        }
+
+        this.notificationMessage("Producto actualizado", "positive");
+        this.onReset();
+        await this.getProducts();
+      } catch (err) {
+        this.notificationMessage(
+          apiErrorMessage(err, "Error al actualizar"),
+          "negative"
+        );
+      } finally {
+        this.savingProduct = false;
+      }
     },
 
     safeFilename(name, fallback = "producto") {

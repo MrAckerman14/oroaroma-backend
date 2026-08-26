@@ -1,4 +1,4 @@
-<template>
+ <template>
   <div class="q-pa-md">
     <ModuleToolbar
       title="Ventas"
@@ -56,6 +56,7 @@
       :can-select-seller="canSelectSeller"
       :is-seller-user="isSellerUser"
       :assigned-seller-label="assignedSellerLabel"
+      :loading="creatingSale"
       @submit="onSubmit"
       @reset="onReset"
       @open-products="openProductsDialog"
@@ -74,6 +75,7 @@
       :is-admin="auth.isAdmin"
       :assigned-seller-label="assignedSellerLabel"
       :status="status"
+      :loading="editingSale"
       @submit="editSale"
       @reset="onReset"
       @open-products="openProductsDialog"
@@ -83,6 +85,9 @@
       v-model="dialogReportResult"
       :report="report"
       :is-admin="auth.isAdmin"
+      :closure-name="closureName"
+      :loading="creatingClosure"
+      @update:closure-name="closureName = $event"
       @send-closure="sendClosure"
     />
 
@@ -161,6 +166,8 @@ export default {
       accept: false,
       dialog: false,
       dialogReportResult: false,
+      closureName: "",
+      creatingClosure: false,
       products: [],
       sales: [],
       userEmployer: [],
@@ -174,6 +181,8 @@ export default {
       deleteDialog: false,
       deleteTarget: null,
       deleting: false,
+      creatingSale: false,
+      editingSale: false,
 
       filters: {
         from: today,
@@ -463,10 +472,13 @@ export default {
     },
 
     async sendClosure() {
+      if (this.creatingClosure) return;
+
       try {
+        this.creatingClosure = true;
         await api.post(
           `/cash-closures?from=${this.filters.from}&to=${this.filters.to}`,
-          {}
+          { name: this.closureName.trim() || this.defaultClosureName() }
         );
 
         this.dialogReportResult = false;
@@ -478,6 +490,8 @@ export default {
           apiErrorMessage(err, "Error al crear cierre"),
           "negative"
         );
+      } finally {
+        this.creatingClosure = false;
       }
     },
 
@@ -499,6 +513,7 @@ export default {
           params: { from: this.filters.from, to: this.filters.to },
         });
         this.report = normalizeCashSummary(dataFromResponse(res));
+        this.closureName = this.defaultClosureName();
 
         this.dialogReportResult = true;
       } catch (err) {
@@ -584,6 +599,8 @@ export default {
     },
 
     async onSubmit() {
+      if (this.creatingSale) return;
+
       // 🔹 Validación básica
       this.updateSaleAmount();
 
@@ -596,6 +613,7 @@ export default {
       }
 
       try {
+        this.creatingSale = true;
         this.applySaleRoleDefaults();
 
         // 🔹 Calcular total de perfumes
@@ -616,6 +634,8 @@ export default {
           apiErrorMessage(err, "Error al agregar"),
           "negative"
         );
+      } finally {
+        this.creatingSale = false;
       }
     },
 
@@ -651,6 +671,15 @@ export default {
       this.deleteDialog = true;
     },
 
+    defaultClosureName() {
+      const formatDate = (value) => {
+        const [year, month, day] = String(value || "").split("-");
+        return year && month && day ? `${day}/${month}/${year}` : value;
+      };
+
+      return `${formatDate(this.filters.from)} - ${formatDate(this.filters.to)}`;
+    },
+
     async deleteSale() {
       if (!this.deleteTarget) return;
 
@@ -673,6 +702,8 @@ export default {
     },
 
     async editSale() {
+      if (this.editingSale) return;
+
       const id = this.saleForm.id;
 
       // 🔹 Convertir selects a IDs
@@ -685,6 +716,7 @@ export default {
       // No enviamos el objeto crudo al backend v2.
 
       try {
+        this.editingSale = true;
         await api.put(`/sales/${id}`, salePayload(this.saleForm));
 
         this.notificationMessage("Venta actualizada", "positive");
@@ -697,6 +729,8 @@ export default {
           apiErrorMessage(err, "Error al actualizar"),
           "negative"
         );
+      } finally {
+        this.editingSale = false;
       }
     },
 

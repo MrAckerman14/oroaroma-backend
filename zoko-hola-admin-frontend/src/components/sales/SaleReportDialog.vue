@@ -8,11 +8,36 @@
           <div class="text-caption text-grey-7">Resumen financiero de las ventas registradas.</div>
         </div>
         <q-space />
-        <q-btn icon="close" flat round dense aria-label="Cerrar" @click="close" />
+        <q-btn icon="close" flat round dense aria-label="Cerrar" :disable="loading" @click="close" />
       </q-card-section>
       <q-separator />
 
       <q-card-section class="col scroll bg-grey-1 q-pa-lg">
+        <q-card v-if="isAdmin" flat bordered class="sale-report-panel bg-white q-pa-md q-mb-lg">
+          <div class="row items-center q-col-gutter-md">
+            <div class="col-12 col-sm">
+              <div class="row items-center no-wrap q-gutter-sm">
+                <q-icon name="drive_file_rename_outline" size="24px" color="yellow-9" />
+                <div>
+                  <div class="text-subtitle2 text-weight-bold">Nombre del cierre</div>
+                  <div class="text-caption text-grey-7">Identifica este cierre antes de crearlo.</div>
+                </div>
+              </div>
+            </div>
+            <div class="col-12 col-sm-6">
+              <q-input
+                :model-value="closureName"
+                outlined
+                dense
+                color="black"
+                label="Nombre del cierre"
+                :disable="loading"
+                @update:model-value="$emit('update:closureName', $event)"
+              />
+            </div>
+          </div>
+        </q-card>
+
         <div class="text-subtitle1 text-weight-bold q-mb-xs">Resumen financiero</div>
         <div class="text-caption text-grey-7 q-mb-md">Totales consolidados antes de crear el cierre.</div>
         <div class="row q-col-gutter-md">
@@ -45,8 +70,8 @@
 
       <q-separator />
       <q-card-actions align="right" class="q-px-lg q-py-md bg-white">
-        <q-btn flat color="grey-8" label="Cerrar" @click="close" />
-        <q-btn v-if="isAdmin" unelevated color="yellow-9" text-color="dark" icon="save" label="Crear cierre de caja" @click="$emit('send-closure')" />
+        <q-btn flat color="grey-8" label="Cerrar" :disable="loading" @click="close" />
+        <q-btn v-if="isAdmin" unelevated color="yellow-9" text-color="dark" icon="save" label="Crear cierre de caja" :loading="loading" :disable="loading" @click="$emit('send-closure')" />
       </q-card-actions>
     </q-card>
   </q-dialog>
@@ -55,8 +80,8 @@
 <script>
 export default {
   name: 'SaleReportDialog',
-  props: { modelValue: { type: Boolean, default: false }, report: { type: Object, required: true }, isAdmin: { type: Boolean, default: false } },
-  emits: ['update:modelValue', 'send-closure'],
+  props: { modelValue: { type: Boolean, default: false }, report: { type: Object, required: true }, isAdmin: { type: Boolean, default: false }, closureName: { type: String, default: '' }, loading: { type: Boolean, default: false } },
+  emits: ['update:modelValue', 'update:closureName', 'send-closure'],
   data() {
     const numberFormat = (value) => new Intl.NumberFormat('es-DO', { maximumFractionDigits: 0 }).format(Number(value || 0));
     const moneyFormat = (value) => new Intl.NumberFormat('es-DO', { style: 'currency', currency: 'DOP' }).format(Number(value || 0));

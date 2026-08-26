@@ -293,12 +293,14 @@
         <q-separator /><q-card-actions
           align="right"
           class="q-px-lg q-py-md bg-white"
-          ><q-btn label="Cancelar" type="reset" color="negative" flat /><q-btn
+          ><q-btn label="Cancelar" type="reset" color="negative" flat :disable="loading" /><q-btn
             label="Guardar cambios"
             type="submit"
             color="yellow-9"
             text-color="black"
             icon="save"
+            :loading="loading"
+            :disable="loading"
         /></q-card-actions>
       </q-form>
     </q-card>
@@ -323,6 +325,7 @@ export default {
     isAdmin: { type: Boolean, default: false },
     assignedSellerLabel: { type: String, default: "" },
     status: { type: Array, default: () => [] },
+    loading: { type: Boolean, default: false },
   },
   emits: ["update:modelValue", "submit", "reset", "open-products"],
   data() {

@@ -4,6 +4,9 @@
       <q-toolbar>
         <q-btn dense flat round icon="menu" @click="left = !left" />
         <q-toolbar-title class="flex items-center">
+          <q-avatar class="q-mr-xs">
+            <img :src="appTheme.logo" :alt="appTheme.name" />
+          </q-avatar>
           <span class="text-bold">
             {{ appTheme.name }}
             <span class="role-title">{{ roleTitle }}</span>

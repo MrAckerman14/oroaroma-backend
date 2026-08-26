@@ -106,9 +106,16 @@ export async function listAllPages(apiClient, endpoint, params = {}) {
     const pageItems = listFromResponse(response)
     items.push(...pageItems)
 
-    const pagination = response?.data?.data?.pagination
-    if (pagination?.totalPages !== undefined) {
-      totalPages = Number(pagination.totalPages || 1)
+    const payload = response?.data?.data ?? response?.data
+    const pagination = payload?.pagination
+    const reportedTotalPages = pagination?.totalPages ?? pagination?.total_pages
+    const reportedTotal = Number(pagination?.total ?? pagination?.totalCount ?? pagination?.count)
+    const reportedPageSize = Number(pagination?.pageSize ?? pagination?.perPage ?? pagination?.limit ?? pageSize)
+
+    if (reportedTotalPages !== undefined) {
+      totalPages = Number(reportedTotalPages || 1)
+    } else if (Number.isFinite(reportedTotal) && reportedTotal >= 0 && reportedPageSize > 0) {
+      totalPages = Math.max(1, Math.ceil(reportedTotal / reportedPageSize))
     } else if (pageItems.length < pageSize) {
       totalPages = page
     } else {

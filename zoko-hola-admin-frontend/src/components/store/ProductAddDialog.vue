@@ -12,7 +12,7 @@
           <div class="text-caption text-grey-7">{{ isEdit ? 'Actualiza la informacion y existencia del producto.' : 'Registra un producto para el inventario.' }}</div>
         </div>
         <q-space />
-        <q-btn icon="close" flat round dense aria-label="Cerrar" @click="reset" />
+        <q-btn icon="close" flat round dense aria-label="Cerrar" :disable="loading" @click="reset" />
       </q-card-section>
       <q-separator />
 
@@ -73,8 +73,8 @@
         </q-card-section>
         <q-separator />
         <q-card-actions align="right" class="q-px-lg q-py-md bg-white">
-          <q-btn flat color="grey-8" label="Cancelar" type="reset" />
-          <q-btn unelevated color="yellow-9" text-color="dark" :icon="isEdit ? 'save' : 'add_box'" :label="isEdit ? 'Guardar cambios' : 'Agregar producto'" type="submit" />
+          <q-btn flat color="grey-8" label="Cancelar" type="reset" :disable="loading" />
+          <q-btn unelevated color="yellow-9" text-color="dark" :icon="isEdit ? 'save' : 'add_box'" :label="isEdit ? 'Guardar cambios' : 'Agregar producto'" type="submit" :loading="loading" :disable="loading" />
         </q-card-actions>
       </q-form>
     </q-card>
@@ -91,6 +91,7 @@ export default {
     modelValue: { type: Boolean, default: false },
     data: { type: Object, required: true },
     isEdit: { type: Boolean, default: false },
+    loading: { type: Boolean, default: false },
   },
   emits: ['update:modelValue', 'submit', 'reset'],
   data() {

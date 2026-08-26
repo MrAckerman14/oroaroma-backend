@@ -61,6 +61,7 @@ SELLER
       :data="data"
       :rols="rols"
       :is-edit="dialogEdit"
+      :loading="savingSeller"
       @update:model-value="setSellerDialog"
       @submit="submitSeller"
       @reset="onReset"
@@ -131,6 +132,7 @@ export default {
       deleteDialog: false,
       deleteTarget: null,
       deleting: false,
+      savingSeller: false,
       sellerDetailsDialog: false,
       selectedSeller: null,
 
@@ -324,13 +326,15 @@ export default {
       if (!value) this.onReset();
     },
 
-    submitSeller() {
+    async submitSeller() {
+      if (this.savingSeller) return;
+
       if (this.dialogEdit) {
-        this.editEmployer();
+        await this.editEmployer();
         return;
       }
 
-      this.onSubmit();
+      await this.onSubmit();
     },
 
     openSellerDetails(seller) {
@@ -451,8 +455,11 @@ export default {
     // =========================================================
 
     async onSubmit() {
+      if (this.savingSeller) return;
+
       if (this.accept !== true) {
         try {
+          this.savingSeller = true;
           await api.post(
             "/users",
             userPayload(this.data)
@@ -481,6 +488,8 @@ export default {
             ),
             "negative"
           );
+        } finally {
+          this.savingSeller = false;
         }
       } else {
         this.notificationMessage(
@@ -554,9 +563,12 @@ export default {
     // =========================================================
 
     async editEmployer() {
+      if (this.savingSeller) return;
+
       const id = this.data.id;
 
       try {
+        this.savingSeller = true;
         await api.put(
           `/users/${id}`,
           userUpdatePayload(this.data)
@@ -578,6 +590,8 @@ export default {
           ),
           "negative"
         );
+      } finally {
+        this.savingSeller = false;
       }
     },
   },

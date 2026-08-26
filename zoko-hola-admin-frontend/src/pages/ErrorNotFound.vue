@@ -3,6 +3,9 @@
     <q-card flat class="error-card bg-white">
       <q-card-section class="q-pa-lg q-pa-sm-xl text-center">
         <div class="row items-center justify-center q-gutter-sm q-mb-xl">
+          <q-avatar size="42px" class="error-brand-logo">
+            <img :src="appTheme.logo" :alt="appTheme.name" />
+          </q-avatar>
           <span class="text-subtitle1 text-weight-bold">{{ appTheme.name }}</span>
         </div>
 
@@ -67,6 +70,10 @@ function goBack() {
   border: 1px solid #e5e7eb;
   border-radius: 24px;
   box-shadow: 0 18px 46px rgba(0, 0, 0, 0.1);
+}
+
+.error-brand-logo {
+  border: 1px solid #f2e0ad;
 }
 
 .error-code {

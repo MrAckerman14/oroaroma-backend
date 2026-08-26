@@ -23,7 +23,7 @@
           </div>
         </div>
         <q-space />
-        <q-btn icon="close" flat round dense aria-label="Cerrar" @click="onReset" />
+        <q-btn icon="close" flat round dense aria-label="Cerrar" :disable="loading" @click="onReset" />
       </q-card-section>
       <q-separator />
 
@@ -99,7 +99,7 @@
 
         <q-separator />
         <q-card-actions align="right" class="q-px-lg q-py-md bg-white">
-          <q-btn flat color="grey-8" label="Cancelar" type="reset" />
+          <q-btn flat color="grey-8" label="Cancelar" type="reset" :disable="loading" />
           <q-btn
             unelevated
             color="yellow-9"
@@ -107,6 +107,8 @@
             :icon="isEdit ? 'save' : 'person_add'"
             :label="isEdit ? 'Guardar cambios' : 'Agregar vendedor'"
             type="submit"
+            :loading="loading"
+            :disable="loading"
           />
         </q-card-actions>
       </q-form>
@@ -122,6 +124,7 @@ export default {
     data: { type: Object, default: () => ({}) },
     rols: { type: Array, default: () => [] },
     isEdit: { type: Boolean, default: false },
+    loading: { type: Boolean, default: false },
   },
   emits: ["update:modelValue", "update:data", "submit", "reset"],
   computed: {

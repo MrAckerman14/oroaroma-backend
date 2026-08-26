@@ -40,6 +40,7 @@
       :model-value="dialog || dialogEdit"
       v-model:form-data="data"
       :is-edit="dialogEdit"
+      :loading="savingMessenger"
       @update:model-value="setMessengerDialog"
       @submit="submitMessenger"
       @reset="onReset"
@@ -105,6 +106,7 @@ export default {
       deleteDialog: false,
       deleteTarget: null,
       deleting: false,
+      savingMessenger: false,
       messengerDetailsDialog: false,
       selectedMessenger: null,
       filters: {
@@ -269,9 +271,11 @@ export default {
 
     async onSubmit() {
       if (!this.auth?.isAdmin) return;
+      if (this.savingMessenger) return;
 
       if (this.accept !== true) {
         try {
+          this.savingMessenger = true;
           const res = await api.post("/users", userPayload(this.data));
 
           console.log("📦 Respuesta del servidor:", res.data.data);
@@ -285,6 +289,8 @@ export default {
           console.error("❌ Error al agregar usuarios:", err);
 
           this.notificationMessage(apiErrorMessage(err, "Error al agregar"), "negative");
+        } finally {
+          this.savingMessenger = false;
         }
       } else {
         this.notificationMessage("Error al agregar!", "negative");
@@ -315,13 +321,15 @@ export default {
       if (!value) this.onReset();
     },
 
-    submitMessenger() {
+    async submitMessenger() {
+      if (this.savingMessenger) return;
+
       if (this.dialogEdit) {
-        this.editEmployer();
+        await this.editEmployer();
         return;
       }
 
-      this.onSubmit();
+      await this.onSubmit();
     },
 
     openMessengerDetails(messenger) {
@@ -351,8 +359,10 @@ export default {
 
     async editEmployer() {
       if (!this.auth?.isAdmin) return;
+      if (this.savingMessenger) return;
 
       try {
+        this.savingMessenger = true;
         const id = this.data.id;
 
         await api.put(`/users/${id}`, userUpdatePayload(this.data));
@@ -366,6 +376,8 @@ export default {
         console.error("❌ Error al actualizar usuario:", err);
 
         this.notificationMessage(apiErrorMessage(err, "Error al actualizar"), "negative");
+      } finally {
+        this.savingMessenger = false;
       }
     },
   },

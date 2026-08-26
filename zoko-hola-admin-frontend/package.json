@@ -1,8 +1,8 @@
 {
-  "name": "zoko-hola-admin-frontend",
+  "name": "fronted",
   "version": "0.0.1",
   "description": "proyecto de gestion de venta de perfumeria",
-  "productName": "Zoko-Hola",
+  "productName": "Oro aroma",
   "author": "Guelmy <pguelmi@gmail.com>",
   "private": true,
   "type": "module",

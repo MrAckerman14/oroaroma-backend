@@ -95,10 +95,6 @@ export default {
   },
 
   data() {
-    const today = new Date();
-    const threeYearsAgo = new Date(today);
-    threeYearsAgo.setFullYear(threeYearsAgo.getFullYear() - 1);
-
     return {
       rows: [],
 
@@ -118,8 +114,8 @@ export default {
       },
 
       data: {
-        from: threeYearsAgo.toLocaleDateString("sv-SE"),
-        to: today.toLocaleDateString("sv-SE"),
+        from: "",
+        to: "",
       },
     };
   },
@@ -148,7 +144,8 @@ export default {
       try {
         const reports = await listAllPages(
           api,
-          "/inventory/reports"
+          "/inventory/reports",
+          paginationParams({ pageSize: LOAD_ALL_PAGE_SIZE })
         );
 
         this.rows = reports.map(
@@ -197,13 +194,14 @@ export default {
 
     async loadReports() {
       try {
+        const dateRange = this.data.from && this.data.to
+          ? { from: this.data.from, to: this.data.to }
+          : this.allRecordsDateRange();
+
         const reports = await listAllPages(
           api,
           "/inventory/reports",
-          {
-            from: this.data.from,
-            to: this.data.to,
-          }
+          dateRange
         );
 
         this.rows = reports.map(
@@ -368,6 +366,13 @@ export default {
 
     async filterByDate() {
       await this.loadReports();
+    },
+
+    allRecordsDateRange() {
+      return {
+        from: "2000-01-01",
+        to: new Date().toLocaleDateString("sv-SE"),
+      };
     },
   },
 };

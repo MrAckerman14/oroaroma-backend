@@ -1,4 +1,4 @@
-# Zoko-Hola Admin Frontend
+# mobile App (fronted)
 
 proyecto de gestion de venta de perfumeria
 

@@ -57,6 +57,7 @@
       :data="data"
       :rols="rols"
       :is-edit="dialogEdit"
+      :loading="savingCollaborator"
       @update:model-value="setCollaboratorDialog"
       @submit="submitCollaborator"
       @reset="onReset"
@@ -126,6 +127,7 @@ export default {
       deleteDialog: false,
       deleteTarget: null,
       deleting: false,
+      savingCollaborator: false,
       collaboratorDetailsDialog: false,
       selectedCollaborator: null,
 
@@ -196,13 +198,15 @@ export default {
       if (!value) this.onReset();
     },
 
-    submitCollaborator() {
+    async submitCollaborator() {
+      if (this.savingCollaborator) return;
+
       if (this.dialogEdit) {
-        this.editEmployer();
+        await this.editEmployer();
         return;
       }
 
-      this.onSubmit();
+      await this.onSubmit();
     },
 
     openCollaboratorDetails(collaborator) {
@@ -301,8 +305,11 @@ export default {
     // =========================================================
 
     async onSubmit() {
+      if (this.savingCollaborator) return;
+
       if (this.accept !== true) {
         try {
+          this.savingCollaborator = true;
           const res = await api.post(
             "/users",
             userPayload(this.data)
@@ -318,7 +325,7 @@ export default {
             "positive"
           );
 
-          this.getUsers();
+          await this.getUsers();
 
           this.onReset();
         } catch (err) {
@@ -334,6 +341,8 @@ export default {
             ),
             "negative"
           );
+        } finally {
+          this.savingCollaborator = false;
         }
       } else {
         this.notificationMessage(
@@ -386,7 +395,7 @@ export default {
           "positive"
         );
 
-        this.getUsers();
+        await this.getUsers();
         this.deleteDialog = false;
         this.deleteTarget = null;
       } catch (err) {
@@ -407,9 +416,12 @@ export default {
     // =========================================================
 
     async editEmployer() {
+      if (this.savingCollaborator) return;
+
       const id = this.data.id;
 
       try {
+        this.savingCollaborator = true;
         await api.put(
           `/users/${id}`,
           userUpdatePayload(this.data)
@@ -420,7 +432,7 @@ export default {
           "positive"
         );
 
-        this.getUsers();
+        await this.getUsers();
 
         this.onReset();
       } catch (err) {
@@ -431,6 +443,8 @@ export default {
           ),
           "negative"
         );
+      } finally {
+        this.savingCollaborator = false;
       }
     },
   },

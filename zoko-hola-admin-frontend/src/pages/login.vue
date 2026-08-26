@@ -2,7 +2,10 @@
   <div class="fullscreen flex flex-center bg-black">
     <div class="login border-rounded q-pa-md">
       <div class="login-header column">
-        <div class="login-title text-h4 text-bold text-center">ZOKO-HOLA</div>
+        <div class="login-avatar">
+          <img :src="appTheme.logo" :alt="appTheme.name" />
+        </div>
+        <div class="login-title text-h4 text-bold text-center">{{ appTheme.name }}</div>
         <div class="text-h6 text-bold text-center q-mb-md text-white">
           Login
         </div>
@@ -56,6 +59,7 @@ import { Cookies, Notify } from "quasar";
 import { api } from "boot/axios";
 import { apiErrorMessage } from "src/services/apiAdapters";
 import { roleFromUser, useAuthStore } from "src/stores/auth";
+import { appTheme } from "src/config/appTheme";
 
 export default {
   name: "LoginView",
@@ -65,6 +69,7 @@ export default {
       email: "",
       password: "",
       loading: false,
+      appTheme,
       auth: null,
     };
   },
@@ -127,6 +132,21 @@ export default {
 
 .login-title {
   color: var(--app-primary);
+}
+
+.login-avatar {
+  position: relative;
+  display: flex;
+  justify-content: center;
+  top: -9vh;
+  height: 72px;
+}
+
+.login-avatar img {
+  height: 128px;
+  width: auto;
+  border: 4px solid var(--app-primary);
+  border-radius: 100%;
 }
 
 .login-form .q-input >>> .q-field__inner.relative-position.col.self-stretch {
