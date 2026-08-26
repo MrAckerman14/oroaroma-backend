@@ -37,7 +37,7 @@ describe('UserUseCases listOptions', () => {
   it('no entrega usuarios al colaborador en el endpoint de opciones', async () => {
     const actor: AuthenticatedUser = {
       id: 'seller-1',
-      email: 'seller@oroaroma.local',
+      email: 'seller@zoko-hola.local',
       name: 'Colaborador',
       status: 'ACTIVE',
       statusLabel: 'Activo',
@@ -73,7 +73,7 @@ describe('UserUseCases listOptions', () => {
   it('permite al vendedor ver colaboradores y mensajeros para crear ventas', async () => {
     const actor: AuthenticatedUser = {
       id: 'employee-1',
-      email: 'employee@oroaroma.local',
+      email: 'employee@zoko-hola.local',
       name: 'Vendedor',
       status: 'ACTIVE',
       statusLabel: 'Activo',
@@ -138,7 +138,7 @@ describe('UserUseCases listOptions', () => {
   it('oculta dinero ganado de mensajero al vendedor y mantiene pendientes de sus ventas', async () => {
     const actor: AuthenticatedUser = {
       id: 'employee-1',
-      email: 'employee@oroaroma.local',
+      email: 'employee@zoko-hola.local',
       name: 'Vendedor',
       status: 'ACTIVE',
       statusLabel: 'Activo',
@@ -212,7 +212,7 @@ describe('UserUseCases listOptions', () => {
   it('mantiene las estadisticas de mensajero del supervisor limitadas a sus ventas', async () => {
     const actor: AuthenticatedUser = {
       id: 'supervisor-1',
-      email: 'supervisor@oroaroma.local',
+      email: 'supervisor@zoko-hola.local',
       name: 'Supervisor',
       status: 'ACTIVE',
       statusLabel: 'Activo',
@@ -279,7 +279,7 @@ describe('UserUseCases dashboard', () => {
   it('limita el listado del supervisor a vendedores y supervisores', async () => {
     const actor: AuthenticatedUser = {
       id: 'supervisor-1',
-      email: 'supervisor@oroaroma.local',
+      email: 'supervisor@zoko-hola.local',
       name: 'Supervisor',
       status: 'ACTIVE',
       statusLabel: 'Activo',
@@ -351,7 +351,7 @@ describe('UserUseCases dashboard', () => {
   it('usa vendedores y supervisores por defecto para el dashboard de supervisor', async () => {
     const actor: AuthenticatedUser = {
       id: 'supervisor-1',
-      email: 'supervisor@oroaroma.local',
+      email: 'supervisor@zoko-hola.local',
       name: 'Supervisor',
       status: 'ACTIVE',
       statusLabel: 'Activo',
@@ -394,7 +394,7 @@ function userOption(id: string, name: string, roleKey: string) {
   return {
     id,
     name,
-    email: `${id}@oroaroma.local`,
+    email: `${id}@zoko-hola.local`,
     status: 'ACTIVE',
     roleAssignments: [{
       role: {

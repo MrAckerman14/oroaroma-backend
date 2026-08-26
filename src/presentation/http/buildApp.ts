@@ -61,7 +61,7 @@ export async function buildApp() {
   await app.register(swagger, {
     openapi: {
       info: {
-        title: 'Oro Aroma API v2',
+        title: 'Zoko-Hola API v2',
         version: '2.0.0'
       }
     }

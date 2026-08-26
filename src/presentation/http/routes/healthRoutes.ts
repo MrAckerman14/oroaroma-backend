@@ -4,7 +4,7 @@ export async function healthRoutes(app: FastifyInstance) {
   app.get('/health', async () => ({
     status: 'ok',
     statusLabel: 'Correcto',
-    service: 'oroaroma-api-v2',
+    service: 'zoko-hola-api-v2',
     timestamp: new Date().toISOString()
   }));
 }

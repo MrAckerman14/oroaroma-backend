@@ -5,7 +5,7 @@ import { ReportUseCases } from './ReportUseCases.js';
 
 const admin: AuthenticatedUser = {
   id: 'admin-1',
-  email: 'admin@oroaroma.local',
+  email: 'admin@zoko-hola.local',
   name: 'Admin',
   status: 'ACTIVE',
   statusLabel: 'Activo',
@@ -33,7 +33,7 @@ const adminWithDetails: AuthenticatedUser = {
 
 const employeeActor: AuthenticatedUser = {
   id: 'employee-1',
-  email: 'employee@oroaroma.local',
+  email: 'employee@zoko-hola.local',
   name: 'Empleado',
   status: 'ACTIVE',
   statusLabel: 'Activo',
@@ -69,8 +69,8 @@ describe('ReportUseCases', () => {
       }>;
     }).cashSummary.bind(reports);
 
-    const messenger = { id: 'messenger-1', name: 'Alex', email: 'alex@oroaroma.local' };
-    const employee = { id: 'employee-1', name: 'Bradley', email: 'bradley@oroaroma.local' };
+    const messenger = { id: 'messenger-1', name: 'Alex', email: 'alex@zoko-hola.local' };
+    const employee = { id: 'employee-1', name: 'Bradley', email: 'bradley@zoko-hola.local' };
     const sales = [
       sale({ status: 'FINALIZED', deliveryPay: '300', messenger, employee }),
       sale({ status: 'CANCELLED', deliveryPay: '200', messenger, employee }),
@@ -99,8 +99,8 @@ describe('ReportUseCases', () => {
       }>;
     }).cashSummary.bind(reports);
 
-    const messenger = { id: 'messenger-1', name: 'Alex', email: 'alex@oroaroma.local' };
-    const employee = { id: 'employee-1', name: 'Bradley', email: 'bradley@oroaroma.local' };
+    const messenger = { id: 'messenger-1', name: 'Alex', email: 'alex@zoko-hola.local' };
+    const employee = { id: 'employee-1', name: 'Bradley', email: 'bradley@zoko-hola.local' };
     const sales = [
       sale({ status: 'FINALIZED', amountCash: '800', deliveryPay: '300', messenger, employee }),
       sale({ status: 'DELIVERY_PENDING', amount: '1200', amountCash: '250', deliveryPay: '100', messenger, employee }),
@@ -125,9 +125,9 @@ describe('ReportUseCases', () => {
       }>;
     }).cashSummary.bind(reports);
 
-    const messenger = { id: 'messenger-1', name: 'Alex', email: 'alex@oroaroma.local' };
-    const employee = { id: 'employee-1', name: 'Bradley', email: 'bradley@oroaroma.local' };
-    const seller = { id: 'seller-1', name: 'Payano', email: 'payano@oroaroma.local' };
+    const messenger = { id: 'messenger-1', name: 'Alex', email: 'alex@zoko-hola.local' };
+    const employee = { id: 'employee-1', name: 'Bradley', email: 'bradley@zoko-hola.local' };
+    const seller = { id: 'seller-1', name: 'Payano', email: 'payano@zoko-hola.local' };
 
     const summary = await cashSummary(supervisorActor, [
       sale({ status: 'FINALIZED', deliveryPay: '300', messenger, employee, seller })
@@ -186,8 +186,8 @@ describe('ReportUseCases', () => {
       }>;
     }).cashSummary.bind(reports);
 
-    const messenger = { id: 'messenger-1', name: 'Alex', email: 'alex@oroaroma.local' };
-    const employee = { id: 'employee-1', name: 'Bradley', email: 'bradley@oroaroma.local' };
+    const messenger = { id: 'messenger-1', name: 'Alex', email: 'alex@zoko-hola.local' };
+    const employee = { id: 'employee-1', name: 'Bradley', email: 'bradley@zoko-hola.local' };
 
     const summary = await cashSummary(employeeActor, [
       sale({ status: 'FINALIZED', deliveryPay: '300', messenger, employee })
@@ -212,9 +212,9 @@ describe('ReportUseCases', () => {
       }>;
     }).cashSummary.bind(reports);
 
-    const messenger = { id: 'messenger-1', name: 'Alex', email: 'alex@oroaroma.local' };
-    const employee = { id: 'employee-1', name: 'Bradley', email: 'bradley@oroaroma.local' };
-    const seller = { id: 'seller-1', name: 'Payano', email: 'payano@oroaroma.local' };
+    const messenger = { id: 'messenger-1', name: 'Alex', email: 'alex@zoko-hola.local' };
+    const employee = { id: 'employee-1', name: 'Bradley', email: 'bradley@zoko-hola.local' };
+    const seller = { id: 'seller-1', name: 'Payano', email: 'payano@zoko-hola.local' };
 
     const summary = await cashSummary(adminWithDetails, [
       sale({
@@ -269,9 +269,9 @@ describe('ReportUseCases', () => {
       }>;
     }).cashSummary.bind(reports);
 
-    const messenger = { id: 'messenger-1', name: 'Alex', email: 'alex@oroaroma.local' };
-    const employee = { id: 'employee-1', name: 'Bradley', email: 'bradley@oroaroma.local' };
-    const seller = { id: 'seller-1', name: 'Payano', email: 'payano@oroaroma.local' };
+    const messenger = { id: 'messenger-1', name: 'Alex', email: 'alex@zoko-hola.local' };
+    const employee = { id: 'employee-1', name: 'Bradley', email: 'bradley@zoko-hola.local' };
+    const seller = { id: 'seller-1', name: 'Payano', email: 'payano@zoko-hola.local' };
 
     const summary = await cashSummary(adminWithDetails, [
       sale({
@@ -316,19 +316,19 @@ describe('ReportUseCases', () => {
       }>;
     }).cashSummary.bind(reports);
 
-    const employee = { id: 'employee-1', name: 'Bradley', email: 'bradley@oroaroma.local' };
+    const employee = { id: 'employee-1', name: 'Bradley', email: 'bradley@zoko-hola.local' };
 
     const summary = await cashSummary(admin, [
       sale({
         status: 'FINALIZED',
         deliveryPay: '300',
-        messenger: { id: 'messenger-1', name: 'Alex', email: 'alex@oroaroma.local' },
+        messenger: { id: 'messenger-1', name: 'Alex', email: 'alex@zoko-hola.local' },
         employee
       }),
       sale({
         status: 'DELIVERY_PENDING',
         deliveryPay: '100',
-        messenger: { id: 'messenger-2', name: 'Deiri', email: 'deiri@oroaroma.local' },
+        messenger: { id: 'messenger-2', name: 'Deiri', email: 'deiri@zoko-hola.local' },
         employee
       })
     ]);

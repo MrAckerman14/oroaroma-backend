@@ -173,7 +173,7 @@ async function main() {
   const adminRole = await prisma.role.findUniqueOrThrow({ where: { key: 'admin' } });
   const adminPasswordHash = await bcrypt.hash('ChangeMe123!', 12);
   const admin = await prisma.user.upsert({
-    where: { email: 'admin@oroaroma.local' },
+    where: { email: 'admin@zoko-hola.local' },
     update: {
       name: 'admin',
       passwordHash: adminPasswordHash,
@@ -181,7 +181,7 @@ async function main() {
     },
     create: {
       name: 'admin',
-      email: 'admin@oroaroma.local',
+      email: 'admin@zoko-hola.local',
       passwordHash: adminPasswordHash
     }
   });

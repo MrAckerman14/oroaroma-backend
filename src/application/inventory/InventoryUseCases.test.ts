@@ -5,7 +5,7 @@ import { InventoryUseCases } from './InventoryUseCases.js';
 
 const employee: AuthenticatedUser = {
   id: 'employee-1',
-  email: 'empleado@oroaroma.local',
+  email: 'empleado@zoko-hola.local',
   name: 'Empleado',
   status: 'ACTIVE',
   statusLabel: 'Activo',

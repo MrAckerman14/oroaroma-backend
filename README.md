@@ -1,4 +1,4 @@
-# Oro Aroma API v2
+# Zoko-Hola API v2
 
 Backend nuevo desde cero con Fastify, Prisma, TypeScript, DDD, Clean Architecture y RBAC granular.
 
@@ -38,7 +38,7 @@ El seed solo prepara permisos, roles del sistema y un usuario administrador inic
 
 Credenciales iniciales:
 
-- Correo: `admin@oroaroma.local`
+- Correo: `admin@zoko-hola.local`
 - Contraseña: `ChangeMe123!`
 - Nombre: `admin`
 

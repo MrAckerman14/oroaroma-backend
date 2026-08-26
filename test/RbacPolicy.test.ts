@@ -11,7 +11,7 @@ function actor(permissionKey: AuthenticatedUser['permissions'][number]['key']): 
 
   return {
     id: 'user-1',
-    email: 'user@oroaroma.local',
+    email: 'user@zoko-hola.local',
     name: 'User',
     status: 'ACTIVE',
     roles: [{ roleKey: 'employee', scope: 'global' }],

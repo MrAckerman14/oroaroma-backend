@@ -15,7 +15,7 @@ describe('sanitizeResponse', () => {
       data: {
         items: [{
           name: 'Perfume',
-          email: 'otro@oroaroma.local',
+          email: 'otro@zoko-hola.local',
           purchasePrice: '100',
           purchaseUnitPrice: '100',
           purchase_price: '100',
@@ -44,13 +44,13 @@ describe('sanitizeResponse', () => {
     const result = sanitizeResponse({
       purchasePrice: '100',
       salePrice: '175',
-      email: 'admin@oroaroma.local'
+      email: 'admin@zoko-hola.local'
     }, request);
 
     expect(result).toEqual({
       purchasePrice: '100',
       salePrice: '175',
-      email: 'admin@oroaroma.local'
+      email: 'admin@zoko-hola.local'
     });
   });
 });

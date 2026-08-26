@@ -1,5 +1,5 @@
 {
-  "name": "oroaroma-api-v2",
+  "name": "zoko-hola-api-v2",
   "version": "1.0.0",
   "type": "module",
   "main": "dist/main.js",
@@ -20,7 +20,7 @@
   "keywords": [],
   "author": "",
   "license": "ISC",
-  "description": "Oro Aroma API v2 built from scratch with Fastify, Prisma, TypeScript, DDD, Clean Architecture and granular RBAC.",
+  "description": "Zoko-Hola API v2 built from scratch with Fastify, Prisma, TypeScript, DDD, Clean Architecture and granular RBAC.",
   "prisma": {
     "seed": "tsx prisma/seed.ts"
   },

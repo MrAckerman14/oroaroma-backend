@@ -1,21 +1,21 @@
 services:
   postgres:
     image: postgres:16-alpine
-    container_name: oroaroma-v2-postgres
+    container_name: zoko-hola-v2-postgres
     restart: unless-stopped
     environment:
-      POSTGRES_DB: oroaroma_v2
+      POSTGRES_DB: zoko_hola_v2
       POSTGRES_USER: postgres
       POSTGRES_PASSWORD: postgres
     ports:
       - "7567:5432"
     volumes:
-      - oroaroma_v2_postgres_data:/var/lib/postgresql/data
+      - zoko_hola_v2_postgres_data:/var/lib/postgresql/data
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U postgres -d oroaroma_v2"]
+      test: ["CMD-SHELL", "pg_isready -U postgres -d zoko_hola_v2"]
       interval: 10s
       timeout: 5s
       retries: 5
 
 volumes:
-  oroaroma_v2_postgres_data:
+  zoko_hola_v2_postgres_data:
