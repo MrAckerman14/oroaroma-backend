@@ -10,8 +10,3 @@ uploads/
 .codex-run-logs/
 .git.disabled/
 **/.git.disabled/
-**/src/assets/logo.png
-**/public/logo.png
-**/public/icons/logo.png
-**/public/favicon.ico
-**/public/icons/favicon-*.png
