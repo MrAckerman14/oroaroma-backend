@@ -3,7 +3,7 @@ import axios from 'axios'
 import { Cookies, Notify } from 'quasar'
 
 const env = typeof process !== 'undefined' && process.env ? process.env : {}
-const productionApiBaseUrl = 'https://backend-oro-aroma-lh1x.onrender.com'
+const productionApiBaseUrl = 'https://backend-zoko-hola.onrender.com'
 
 function defaultApiBaseUrl () {
   if (typeof window === 'undefined') return 'http://localhost:3000'
