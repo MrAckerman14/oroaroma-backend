@@ -1,0 +1,53 @@
+// Tema Zoko
+// Paleta inspirada en el azul marino del logotipo Zoko. 
+// Ajusta los valores de este archivo para personalizar este tema.
+
+:root {
+  // Colores principales de Quasar
+  --q-primary: #2865b2;
+  --q-secondary: #245aa6;
+  --q-accent: #174a99;
+  --q-dark: #071f47;
+  --q-dark-page: #061833;
+  --q-info: #245aa6;
+  --q-warning: #4778be;
+
+  // Tokens visuales de la aplicacion
+  --app-primary: #2865b2;
+  --app-primary-strong: #061f4b;
+  --app-primary-soft: #edf4ff;
+  --app-primary-soft-strong: #dbeaff;
+  --app-primary-border: #8fafe0;
+  --app-ink: #000000;
+  --app-ink-soft: #1d1d1d;
+  --app-page: #f5f8fd;
+  --app-surface: #ffffff;
+  --app-border: #d8e2f1;
+  --app-muted: #5d6f89;
+  --app-menu-user-icon: #b9d4ff;
+  --app-menu-role: #2865b2;
+  --app-menu-role-border: #77a5df;
+}
+
+// Los componentes existentes usan yellow-9 como acento. En este tema se
+// conservan esas referencias y se representan como azul para cambiar el
+// sistema completo sin alterar la logica de cada componente.
+.bg-yellow-9.text-black,
+.bg-yellow-9.text-dark {
+  color: var(--app-surface) !important;
+}
+
+// Los dialogos reutilizan yellow-9 para sus acciones e iconos de encabezado.
+// Se fuerza el mismo acento global de los botones "Agregar".
+.q-dialog .bg-yellow-9 {
+  background: var(--app-primary) !important;
+}
+
+.q-dialog .text-yellow-9 {
+  color: var(--app-primary) !important;
+}
+
+.q-dialog .bg-yellow-9.text-black,
+.q-dialog .bg-yellow-9.text-dark {
+  color: var(--app-surface) !important;
+}

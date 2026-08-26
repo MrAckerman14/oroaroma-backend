@@ -4,7 +4,7 @@
       <q-toolbar>
         <q-btn dense flat round icon="menu" @click="left = !left" />
         <q-toolbar-title class="flex items-center">
-          <q-avatar class="q-mr-xs">
+          <q-avatar class="q-mr-sm">
             <img :src="appTheme.logo" :alt="appTheme.name" />
           </q-avatar>
           <span class="text-bold">
@@ -82,5 +82,5 @@ export default {
 </script>
 
 <style scoped>
-.role-title { color: var(--app-primary-strong); }
+.role-title { color: var(--app-primary-soft-strong); }
 </style>

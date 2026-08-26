@@ -1,56 +1,86 @@
 <template>
-  <div class="fullscreen flex flex-center bg-black">
-    <div class="login border-rounded q-pa-md">
-      <div class="login-header column">
-        <div class="login-avatar">
-          <img :src="appTheme.logo" :alt="appTheme.name" />
+  <div class="login-page flex flex-center q-pa-md">
+    <main class="login-frame">
+      <section class="login-panel">
+        <div class="login-panel__inner">
+          <header class="login-form-header">
+            <q-avatar size="64px" class="login-form-header__logo">
+              <img :src="appTheme.logo" :alt="appTheme.name" />
+            </q-avatar>
+            <div class="login-form-header__eyebrow">{{ appTheme.name }}</div>
+            <h1>Bienvenido de vuelta</h1>
+            <p>Inicia sesión para acceder al panel de administración.</p>
+          </header>
+
+          <q-form class="login-form q-mt-xl" @submit.prevent="login">
+          <q-input
+            v-model="email"
+            outlined
+            color="primary"
+            label="Correo electrónico"
+            type="email"
+            autocomplete="email"
+            lazy-rules
+            :rules="[(val) => !!val || 'Ingresa tu correo']"
+          >
+            <template #prepend><q-icon name="mail_outline" /></template>
+          </q-input>
+
+          <q-input
+            v-model="password"
+            class="q-mt-md"
+            outlined
+            color="primary"
+            label="Contraseña"
+            :type="passwordVisible ? 'text' : 'password'"
+            autocomplete="current-password"
+            lazy-rules
+            :rules="[(val) => !!val || 'Ingresa tu contraseña']"
+          >
+            <template #prepend><q-icon name="lock_outline" /></template>
+            <template #append>
+              <q-btn
+                flat
+                round
+                dense
+                color="grey-7"
+                :icon="passwordVisible ? 'visibility_off' : 'visibility'"
+                :aria-label="passwordVisible ? 'Ocultar contraseña' : 'Mostrar contraseña'"
+                @click="passwordVisible = !passwordVisible"
+              />
+            </template>
+          </q-input>
+
+          <q-btn
+            class="login-form__submit full-width q-mt-lg"
+            label="Iniciar sesión"
+            icon="login"
+            type="submit"
+            unelevated
+            no-caps
+            :loading="loading"
+            :disable="loading"
+          />
+          </q-form>
         </div>
-        <div class="login-title text-h4 text-bold text-center">{{ appTheme.name }}</div>
-        <div class="text-h6 text-bold text-center q-mb-md text-white">
-          Login
+      </section>
+
+      <aside class="login-showcase">
+        <div class="login-showcase__content">
+          <q-avatar size="112px" class="login-showcase__logo">
+            <img :src="appTheme.logo" :alt="appTheme.name" />
+          </q-avatar>
+          <div class="login-showcase__eyebrow">¡HOLA!</div>
+          <h2>{{ appTheme.name }} Admin</h2>
+          <p>Una forma simple de mantener tu operación organizada cada día.</p>
+          <div class="login-showcase__features">
+            <div><q-icon name="point_of_sale" /> Ventas y cierres de caja</div>
+            <div><q-icon name="inventory_2" /> Inventario actualizado</div>
+            <div><q-icon name="groups" /> Gestión de tu equipo</div>
+          </div>
         </div>
-      </div>
-
-      <q-form class="login-form column" @submit.prevent="login">
-        <q-input
-          class="q-mx-md"
-          dense
-          color="amber-7"
-          bg-color="white"
-          rounded
-          outlined
-          v-model="email"
-          label="Correo"
-          type="email"
-          lazy-rules
-          :rules="[(val) => !!val || 'Ingresa tu correo']"
-        />
-
-        <q-input
-          class="q-mx-md"
-          dense
-          color="amber-7"
-          bg-color="white"
-          rounded
-          outlined
-          v-model="password"
-          label="Contrasena"
-          type="password"
-          lazy-rules
-          :rules="[(val) => !!val || 'Ingresa tu contrasena']"
-        />
-
-        <q-btn
-          rounded
-          class="q-pa-sm q-mx-xl"
-          label="Iniciar sesion"
-          type="submit"
-          unelevated
-          :loading="loading"
-          :disable="loading"
-        />
-      </q-form>
-    </div>
+      </aside>
+    </main>
   </div>
 </template>
 
@@ -68,6 +98,7 @@ export default {
     return {
       email: "",
       password: "",
+      passwordVisible: false,
       loading: false,
       appTheme,
       auth: null,
@@ -123,39 +154,186 @@ export default {
 </script>
 
 <style scoped>
-.login {
-  height: auto;
-  border: 2px solid var(--app-primary);
-  border-radius: 20px;
-  padding: 20px;
+.login-page {
+  min-height: 100vh;
+  background:
+    radial-gradient(circle at 80% 10%, rgba(40, 101, 178, .12), transparent 28rem),
+    var(--app-page);
 }
 
-.login-title {
-  color: var(--app-primary);
+.login-frame {
+  display: grid;
+  grid-template-columns: minmax(380px, 1fr) minmax(330px, .86fr);
+  width: min(100%, 940px);
+  overflow: hidden;
+  border: 1px solid var(--app-border);
+  border-radius: 26px;
+  box-shadow: 0 20px 52px rgba(7, 31, 71, .15);
+  background: var(--app-surface);
 }
 
-.login-avatar {
-  position: relative;
+.login-panel {
   display: flex;
-  justify-content: center;
-  top: -9vh;
-  height: 72px;
+  align-items: center;
+  min-height: 550px;
+  padding: 54px 64px;
 }
 
-.login-avatar img {
-  height: 128px;
-  width: auto;
-  border: 4px solid var(--app-primary);
-  border-radius: 100%;
+.login-panel__inner {
+  width: 100%;
 }
 
-.login-form .q-input >>> .q-field__inner.relative-position.col.self-stretch {
-  border: 1px solid var(--app-primary);
-  border-radius: 32px;
+.login-form-header__logo {
+  box-sizing: border-box;
+  overflow: hidden;
+  border: 2px solid var(--app-primary-border);
+  border-radius: 50%;
+  background: var(--app-surface);
 }
 
-.login-form .q-btn {
-  background: var(--app-primary);
+.login-form-header__eyebrow {
+  margin-top: 18px;
+  color: var(--app-primary);
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: .08em;
+  text-transform: uppercase;
+}
+
+.login-form-header h1 {
+  margin: 8px 0;
   color: var(--app-ink);
+  font-size: 30px;
+  font-weight: 800;
+  line-height: 1.2;
+}
+
+.login-form-header p {
+  margin: 0;
+  color: var(--app-muted);
+  font-size: 14px;
+  line-height: 1.55;
+}
+
+.login-showcase {
+  display: flex;
+  align-items: center;
+  padding: 54px;
+  color: var(--app-surface);
+  background:
+    linear-gradient(145deg, rgba(185, 212, 255, .14), transparent 54%),
+    var(--app-ink-soft);
+}
+
+.login-showcase__content {
+  max-width: 290px;
+}
+
+.login-showcase__logo {
+  box-sizing: border-box;
+  overflow: hidden;
+  border: 3px solid var(--app-menu-user-icon);
+  border-radius: 50%;
+  background: var(--app-surface);
+}
+
+.login-form-header__logo :deep(img),
+.login-showcase__logo :deep(img) {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.login-showcase__eyebrow {
+  margin-top: 26px;
+  color: var(--app-menu-user-icon);
+  font-size: 14px;
+  font-weight: 700;
+}
+
+.login-showcase h2 {
+  margin: 6px 0 10px;
+  font-size: 30px;
+  font-weight: 800;
+  line-height: 1.2;
+}
+
+.login-showcase p {
+  margin: 0;
+  color: rgba(255, 255, 255, .76);
+  font-size: 14px;
+  line-height: 1.6;
+}
+
+.login-showcase__features {
+  display: grid;
+  gap: 14px;
+  margin-top: 30px;
+  color: rgba(255, 255, 255, .92);
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.login-showcase__features .q-icon {
+  margin-right: 8px;
+  color: var(--app-menu-user-icon);
+}
+
+.login-form :deep(.q-field__control) {
+  min-height: 54px;
+  border-radius: 12px;
+}
+
+.login-form :deep(.q-field--outlined .q-field__control:before) {
+  border-color: var(--app-border);
+}
+
+.login-form__submit {
+  min-height: 50px;
+  border-radius: 10px;
+  color: var(--app-surface) !important;
+  background: var(--app-primary) !important;
+  font-weight: 700;
+  letter-spacing: .01em;
+}
+
+@media (max-width: 599px) {
+  .login-page {
+    padding: 20px 16px;
+  }
+
+  .login-frame {
+    grid-template-columns: 1fr;
+    border-radius: 22px;
+  }
+
+  .login-panel {
+    min-height: auto;
+    padding: 34px 28px;
+  }
+
+  .login-showcase {
+    min-height: auto;
+    padding: 20px 28px 22px;
+  }
+
+  .login-showcase__logo {
+    display: none;
+  }
+
+  .login-showcase__eyebrow {
+    margin-top: 0;
+    font-size: 12px;
+  }
+
+  .login-showcase h2 {
+    margin: 4px 0 0;
+    font-size: 21px;
+  }
+
+  .login-showcase p,
+  .login-showcase__features {
+    display: none;
+  }
 }
 </style>

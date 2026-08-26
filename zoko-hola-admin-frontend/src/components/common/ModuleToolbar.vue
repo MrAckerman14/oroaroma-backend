@@ -50,7 +50,7 @@ export default {
   width: 46px;
   height: 46px;
   border-radius: 12px;
-  color: #000;
+  color: var(--app-surface);
   background: var(--app-primary);
 }
 

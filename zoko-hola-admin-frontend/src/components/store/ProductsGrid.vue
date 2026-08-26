@@ -29,6 +29,7 @@
                 class="stock-status"
                 rounded
                 :color="stockColor(props.row.stock)"
+                :class="{ 'stock-status--low': Number(props.row.stock || 0) > 0 && Number(props.row.stock || 0) <= 24 }"
                 :label="stockLabel(props.row.stock)"
               />
 
@@ -195,6 +196,11 @@ export default {
   font-weight: 700;
   letter-spacing: 0.15px;
   box-shadow: 0 2px 8px rgba(0, 0, 0, 0.2);
+}
+
+.stock-status--low {
+  color: #000 !important;
+  background: #f9a825 !important;
 }
 
 .sales-highlight {

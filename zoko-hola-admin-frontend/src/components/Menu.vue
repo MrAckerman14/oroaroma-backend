@@ -13,9 +13,9 @@
       </div>
 
       <div class="row items-center q-mt-md">
-        <q-icon name="account_circle" size="18px" class="q-mr-xs text-yellow-8" />
-        <span class="text-caption text-grey-4">{{ auth?.name || "Usuario" }}</span>
-        <q-badge class="q-ml-sm" color="yellow-9" text-color="black" :label="roleName" />
+        <q-icon name="account_circle" size="18px" class="q-mr-xs menu-brand__user-icon" />
+        <span class="text-caption menu-brand__user-name">{{ auth?.name || "Usuario" }}</span>
+        <q-badge class="q-ml-sm menu-brand__role" :label="roleName" />
       </div>
     </div>
 
@@ -51,7 +51,7 @@
 
     <div class="menu-footer q-pa-md">
       <div class="row items-center no-wrap">
-        <q-avatar color="grey-9" text-color="yellow-9" icon="person" />
+        <q-avatar class="menu-footer__avatar" icon="person" />
         <div class="q-ml-sm ellipsis">
           <div class="text-body2 text-weight-medium ellipsis">
             {{ auth?.name || "Usuario" }}
@@ -145,6 +145,21 @@ export default {
   background: var(--app-surface);
 }
 
+.menu-brand__user-icon {
+  color: var(--app-menu-user-icon);
+}
+
+.menu-brand__user-name {
+  color: var(--app-surface);
+  font-weight: 600;
+}
+
+.menu-brand__role {
+  color: var(--app-surface);
+  background: var(--app-menu-role);
+  border: 1px solid var(--app-menu-role-border);
+}
+
 .menu-navigation {
   padding-top: 14px;
   overflow-y: auto;
@@ -176,11 +191,16 @@ export default {
 }
 
 .menu-item--active .menu-item__icon {
-  color: #c98300;
+  color: var(--app-primary-strong);
 }
 
 .menu-footer {
   border-top: 1px solid #ececec;
   background: #fafafa;
+}
+
+.menu-footer__avatar {
+  color: var(--app-primary);
+  background: var(--app-primary-soft-strong);
 }
 </style>
