@@ -68,18 +68,10 @@ export class LoginUseCase {
     }
 
     const user = this.users.toAuthenticatedUser(session.user);
-    const nextRefreshToken = await this.prisma.$transaction(async (tx) => {
-      await tx.refreshSession.update({
-        where: { id: session.id },
-        data: { revokedAt: new Date() }
-      });
-
-      return this.createRefreshSession(user.id, metadata, tx);
-    });
 
     return {
       accessToken: this.createAccessToken(user),
-      refreshToken: nextRefreshToken,
+      refreshToken,
       user
     };
   }
