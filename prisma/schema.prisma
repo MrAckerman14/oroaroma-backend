@@ -44,6 +44,11 @@ enum CashClosureStatus {
   VOIDED
 }
 
+enum ExpenseType {
+  EXPENSE
+  INCOME
+}
+
 model Tenant {
   id        String       @id @default(uuid())
   slug      String       @unique
@@ -65,6 +70,10 @@ model Tenant {
   inventoryReportDetails InventoryReportDetail[]
   auditLogs              AuditLog[]
   moduleSettings         TenantModuleSetting[]
+  expenseCategories      ExpenseCategory[]
+  expenseControls        ExpenseControl[]
+  expenseReports         ExpenseReport[]
+  expenseReportDetails   ExpenseReportDetail[]
 
   @@index([status])
 }
@@ -92,6 +101,8 @@ model User {
   inventoryReports InventoryReport[]    @relation("InventoryReportCreator")
   auditLogs        AuditLog[]
   platformRoles    PlatformRoleAssignment[]
+  expenseControls  ExpenseControl[] @relation("ExpenseControlCreator")
+  expenseReports   ExpenseReport[]  @relation("ExpenseReportCreator")
 
   @@index([tenantId])
   @@index([tenantId, email])
@@ -453,4 +464,85 @@ model TenantModuleSetting {
 
   @@id([tenantId, moduleKey])
   @@index([tenantId, enabled])
+}
+
+model ExpenseCategory {
+  id             String   @id @default(uuid())
+  tenantId       String
+  name           String
+  normalizedName String
+  isSystem       Boolean  @default(false)
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+  deletedAt      DateTime?
+
+  tenant    Tenant           @relation(fields: [tenantId], references: [id], onDelete: Restrict)
+  movements ExpenseControl[]
+
+  @@unique([tenantId, normalizedName])
+  @@index([tenantId, deletedAt])
+}
+
+model ExpenseControl {
+  id          String      @id @default(uuid())
+  tenantId    String
+  amount      Decimal     @db.Decimal(14, 2)
+  type        ExpenseType
+  categoryId  String
+  date        DateTime
+  description String?
+  createdById String
+  createdAt   DateTime    @default(now())
+  updatedAt   DateTime    @updatedAt
+  deletedAt   DateTime?
+
+  tenant   Tenant          @relation(fields: [tenantId], references: [id], onDelete: Restrict)
+  category ExpenseCategory @relation(fields: [categoryId], references: [id], onDelete: Restrict)
+  creator  User            @relation("ExpenseControlCreator", fields: [createdById], references: [id], onDelete: Restrict)
+
+  @@index([tenantId, date])
+  @@index([tenantId, type, date])
+  @@index([categoryId])
+  @@index([createdById])
+  @@index([deletedAt])
+}
+
+model ExpenseReport {
+  id           String   @id @default(uuid())
+  tenantId     String
+  name         String
+  note         String?
+  fromDate     DateTime
+  toDate       DateTime
+  totalIncome  Decimal  @db.Decimal(14, 2)
+  totalExpense Decimal  @db.Decimal(14, 2)
+  balance      Decimal  @db.Decimal(14, 2)
+  createdById  String
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+  deletedAt    DateTime?
+
+  tenant  Tenant                @relation(fields: [tenantId], references: [id], onDelete: Restrict)
+  creator User                  @relation("ExpenseReportCreator", fields: [createdById], references: [id], onDelete: Restrict)
+  details ExpenseReportDetail[]
+
+  @@index([tenantId, createdAt])
+  @@index([createdById])
+  @@index([deletedAt])
+}
+
+model ExpenseReportDetail {
+  id              String  @id @default(uuid())
+  tenantId        String
+  expenseReportId String
+  categoryName    String
+  income          Decimal @db.Decimal(14, 2)
+  expense         Decimal @db.Decimal(14, 2)
+  balance         Decimal @db.Decimal(14, 2)
+
+  tenant Tenant        @relation(fields: [tenantId], references: [id], onDelete: Restrict)
+  report ExpenseReport @relation(fields: [expenseReportId], references: [id], onDelete: Cascade)
+
+  @@index([tenantId])
+  @@index([expenseReportId])
 }
