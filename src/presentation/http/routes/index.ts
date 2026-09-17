@@ -7,10 +7,12 @@ import { reportRoutes } from './reportRoutes.js';
 import { saleRoutes } from './saleRoutes.js';
 import { storeRoutes } from './storeRoutes.js';
 import { userRoutes } from './userRoutes.js';
+import { tenantRoutes } from './tenantRoutes.js';
 
 export async function registerRoutes(app: FastifyInstance) {
   await app.register(healthRoutes);
   await app.register(authRoutes);
+  await app.register(tenantRoutes);
   await app.register(accessRoutes);
   await app.register(userRoutes);
   await app.register(storeRoutes);

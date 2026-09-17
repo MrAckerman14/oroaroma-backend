@@ -139,13 +139,14 @@ async function main() {
 
   for (const [roleKey, role] of Object.entries(roleDefinitions)) {
     const savedRole = await prisma.role.upsert({
-      where: { key: roleKey },
+      where: { tenantId_key: { tenantId: 'default', key: roleKey } },
       update: {
         name: role.name,
         description: role.description,
         isSystem: true
       },
       create: {
+        tenantId: 'default',
         key: roleKey,
         name: role.name,
         description: role.description,
@@ -185,16 +186,20 @@ async function main() {
     });
   }
 
-  const adminRole = await prisma.role.findUniqueOrThrow({ where: { key: 'admin' } });
+  const adminRole = await prisma.role.findUniqueOrThrow({
+    where: { tenantId_key: { tenantId: 'default', key: 'admin' } }
+  });
   const adminPasswordHash = await bcrypt.hash('ChangeMe123!', 12);
   const admin = await prisma.user.upsert({
     where: { email: 'admin@oroaroma.local' },
     update: {
+      tenantId: 'default',
       name: 'admin',
       passwordHash: adminPasswordHash,
       status: 'ACTIVE'
     },
     create: {
+      tenantId: 'default',
       name: 'admin',
       email: 'admin@oroaroma.local',
       passwordHash: adminPasswordHash
@@ -207,6 +212,7 @@ async function main() {
     create: {
       id: 'seed-admin-global-role',
       userId: admin.id,
+      tenantId: 'default',
       roleId: adminRole.id,
       scope: PermissionScope.GLOBAL
     }
