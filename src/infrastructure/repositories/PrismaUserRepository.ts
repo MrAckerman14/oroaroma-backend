@@ -21,6 +21,13 @@ export class PrismaUserRepository {
     });
   }
 
+  findRawUserByEmailAcrossTenants(email: string) {
+    return this.prisma.user.findFirst({
+      where: { email: email.trim().toLowerCase(), deletedAt: null, tenant: { status: 'ACTIVE' } },
+      include: this.accessIncludes()
+    });
+  }
+
   findRawUserById(id: string, tenantId: string) {
     return this.prisma.user.findFirst({
       where: { id, tenantId, deletedAt: null },

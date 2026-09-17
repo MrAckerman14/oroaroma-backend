@@ -9,7 +9,6 @@ export interface AccessTokenPayload {
 }
 
 export interface LoginInput {
-  tenant?: string;
   email: string;
   password: string;
 }

@@ -100,7 +100,7 @@ model User {
 model Role {
   id          String   @id @default(uuid())
   tenantId    String   @default("default")
-  key         String   @unique
+  key         String
   name        String
   description String?
   isSystem    Boolean  @default(false)
@@ -112,6 +112,7 @@ model Role {
   assignments UserRoleAssignment[]
 
   @@index([tenantId])
+  @@unique([tenantId, key])
 }
 
 model Permission {
