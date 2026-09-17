@@ -3,7 +3,7 @@ Description=Check Oro Aroma testing branches for deployable commits
 
 [Timer]
 OnBootSec=2min
-OnUnitActiveSec=1min
+OnUnitActiveSec=2min
 RandomizedDelaySec=10s
 Persistent=true
 
