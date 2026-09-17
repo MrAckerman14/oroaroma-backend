@@ -1,0 +1,14 @@
+node_modules
+dist
+coverage
+.env
+.env.*
+!.env.example
+.git
+.gitignore
+.codex-run-logs
+.tmp-*
+*.log
+uploads
+docs
+zoko-hola-admin-frontend

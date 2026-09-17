@@ -13,6 +13,12 @@ enum UserStatus {
   BLOCKED
 }
 
+enum TenantStatus {
+  ACTIVE
+  SUSPENDED
+  ARCHIVED
+}
+
 enum PermissionScope {
   GLOBAL
   STORE
@@ -38,33 +44,62 @@ enum CashClosureStatus {
   VOIDED
 }
 
+model Tenant {
+  id        String       @id @default(uuid())
+  slug      String       @unique
+  name      String
+  status    TenantStatus @default(ACTIVE)
+  createdAt DateTime     @default(now())
+  updatedAt DateTime     @updatedAt
+
+  users                  User[]
+  roles                  Role[]
+  roleAssignments        UserRoleAssignment[]
+  refreshSessions        RefreshSession[]
+  stores                 Store[]
+  sales                  Sale[]
+  saleDetails            SaleDetail[]
+  cashClosures           CashClosure[]
+  cashClosureDetails     CashClosureDetail[]
+  inventoryReports       InventoryReport[]
+  inventoryReportDetails InventoryReportDetail[]
+  auditLogs              AuditLog[]
+
+  @@index([status])
+}
+
 model User {
-  id           String     @id @default(uuid())
-  name         String
-  email        String     @unique
-  passwordHash String
+  id               String     @id @default(uuid())
+  tenantId         String     @default("default")
+  name             String
+  email            String     @unique
+  passwordHash     String
   profileImagePath String?
-  phone        String?
-  status       UserStatus @default(ACTIVE)
-  createdAt    DateTime   @default(now())
-  updatedAt    DateTime   @updatedAt
-  deletedAt    DateTime?
+  phone            String?
+  status           UserStatus @default(ACTIVE)
+  createdAt        DateTime   @default(now())
+  updatedAt        DateTime   @updatedAt
+  deletedAt        DateTime?
 
-  roleAssignments UserRoleAssignment[]
-  refreshSessions RefreshSession[]
-  employeeSales   Sale[] @relation("EmployeeSales")
-  messengerSales  Sale[] @relation("MessengerSales")
-  sellerSales     Sale[] @relation("SellerSales")
-  cashClosures    CashClosure[] @relation("CashClosureCreator")
-  inventoryReports InventoryReport[] @relation("InventoryReportCreator")
-  auditLogs       AuditLog[]
+  tenant           Tenant               @relation(fields: [tenantId], references: [id], onDelete: Restrict)
+  roleAssignments  UserRoleAssignment[]
+  refreshSessions  RefreshSession[]
+  employeeSales    Sale[]               @relation("EmployeeSales")
+  messengerSales   Sale[]               @relation("MessengerSales")
+  sellerSales      Sale[]               @relation("SellerSales")
+  cashClosures     CashClosure[]        @relation("CashClosureCreator")
+  inventoryReports InventoryReport[]    @relation("InventoryReportCreator")
+  auditLogs        AuditLog[]
 
+  @@index([tenantId])
+  @@index([tenantId, email])
   @@index([status])
   @@index([deletedAt])
 }
 
 model Role {
   id          String   @id @default(uuid())
+  tenantId    String   @default("default")
   key         String   @unique
   name        String
   description String?
@@ -72,8 +107,11 @@ model Role {
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
 
+  tenant      Tenant               @relation(fields: [tenantId], references: [id], onDelete: Restrict)
   permissions RolePermission[]
   assignments UserRoleAssignment[]
+
+  @@index([tenantId])
 }
 
 model Permission {
@@ -104,6 +142,7 @@ model RolePermission {
 
 model UserRoleAssignment {
   id         String          @id @default(uuid())
+  tenantId   String          @default("default")
   userId     String
   roleId     String
   scope      PermissionScope @default(GLOBAL)
@@ -111,78 +150,91 @@ model UserRoleAssignment {
   expiresAt  DateTime?
   assignedAt DateTime        @default(now())
 
-  user  User   @relation(fields: [userId], references: [id], onDelete: Cascade)
-  role  Role   @relation(fields: [roleId], references: [id], onDelete: Cascade)
-  store Store? @relation(fields: [storeId], references: [id], onDelete: Cascade)
+  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Restrict)
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+  role   Role   @relation(fields: [roleId], references: [id], onDelete: Cascade)
+  store  Store? @relation(fields: [storeId], references: [id], onDelete: Cascade)
 
+  @@index([tenantId])
   @@index([userId])
   @@index([roleId])
   @@index([scope, storeId])
 }
 
 model RefreshSession {
-  id           String   @id @default(uuid())
-  userId       String
-  tokenHash    String   @unique
-  userAgent    String?
-  ipAddress    String?
-  expiresAt    DateTime
-  revokedAt    DateTime?
-  createdAt    DateTime @default(now())
+  id        String    @id @default(uuid())
+  tenantId  String    @default("default")
+  userId    String
+  tokenHash String    @unique
+  userAgent String?
+  ipAddress String?
+  expiresAt DateTime
+  revokedAt DateTime?
+  createdAt DateTime  @default(now())
 
-  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Restrict)
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
 
+  @@index([tenantId])
   @@index([userId])
   @@index([expiresAt])
 }
 
 model Store {
-  id            String   @id @default(uuid())
+  id            String    @id @default(uuid())
+  tenantId      String    @default("default")
   name          String
   description   String?
-  purchasePrice Decimal  @db.Decimal(12, 2)
-  salePrice     Decimal  @db.Decimal(12, 2)
+  purchasePrice Decimal   @db.Decimal(12, 2)
+  salePrice     Decimal   @db.Decimal(12, 2)
   stock         Int
   imagePath     String?
-  createdAt     DateTime @default(now())
-  updatedAt     DateTime @updatedAt
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
   deletedAt     DateTime?
 
-  roleAssignments UserRoleAssignment[]
-  saleDetails     SaleDetail[]
+  tenant           Tenant                  @relation(fields: [tenantId], references: [id], onDelete: Restrict)
+  roleAssignments  UserRoleAssignment[]
+  saleDetails      SaleDetail[]
   inventoryDetails InventoryReportDetail[]
 
+  @@index([tenantId])
+  @@index([tenantId, name])
   @@index([deletedAt])
   @@index([name])
 }
 
 model Sale {
-  id             String       @id @default(uuid())
+  id             String        @id @default(uuid())
+  tenantId       String        @default("default")
   employeeId     String
   messengerId    String?
   sellerId       String?
-  amount         Decimal      @db.Decimal(12, 2)
-  amountCash     Decimal      @default(0) @db.Decimal(12, 2)
-  amountTransfer Decimal      @default(0) @db.Decimal(12, 2)
+  amount         Decimal       @db.Decimal(12, 2)
+  amountCash     Decimal       @default(0) @db.Decimal(12, 2)
+  amountTransfer Decimal       @default(0) @db.Decimal(12, 2)
   paymentMethod  PaymentMethod
-  deliveryPay    Decimal      @default(0) @db.Decimal(12, 2)
+  deliveryPay    Decimal       @default(0) @db.Decimal(12, 2)
   perfumeCount   Int
   phone          String?
   description    String?
   locationUrl    String?
-  status         SaleStatus   @default(DELIVERY_PENDING)
+  status         SaleStatus    @default(DELIVERY_PENDING)
   finalizedAt    DateTime?
   cancelledAt    DateTime?
-  createdAt      DateTime     @default(now())
-  updatedAt      DateTime     @updatedAt
+  createdAt      DateTime      @default(now())
+  updatedAt      DateTime      @updatedAt
   deletedAt      DateTime?
 
-  employee User  @relation("EmployeeSales", fields: [employeeId], references: [id])
-  messenger User? @relation("MessengerSales", fields: [messengerId], references: [id])
-  seller User? @relation("SellerSales", fields: [sellerId], references: [id])
-  details SaleDetail[]
+  tenant         Tenant              @relation(fields: [tenantId], references: [id], onDelete: Restrict)
+  employee       User                @relation("EmployeeSales", fields: [employeeId], references: [id])
+  messenger      User?               @relation("MessengerSales", fields: [messengerId], references: [id])
+  seller         User?               @relation("SellerSales", fields: [sellerId], references: [id])
+  details        SaleDetail[]
   closureDetails CashClosureDetail[]
 
+  @@index([tenantId])
+  @@index([tenantId, createdAt])
   @@index([employeeId])
   @@index([messengerId])
   @@index([sellerId])
@@ -192,47 +244,54 @@ model Sale {
 }
 
 model SaleDetail {
-  id        String   @id @default(uuid())
-  saleId    String
-  storeId   String
-  quantity  Int
-  unitPrice Decimal  @db.Decimal(12, 2)
-  purchaseUnitPrice Decimal @db.Decimal(12, 2)
-  createdAt DateTime @default(now())
+  id                String   @id @default(uuid())
+  tenantId          String   @default("default")
+  saleId            String
+  storeId           String
+  quantity          Int
+  unitPrice         Decimal  @db.Decimal(12, 2)
+  purchaseUnitPrice Decimal  @db.Decimal(12, 2)
+  createdAt         DateTime @default(now())
 
-  sale  Sale  @relation(fields: [saleId], references: [id], onDelete: Cascade)
-  store Store @relation(fields: [storeId], references: [id])
+  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Restrict)
+  sale   Sale   @relation(fields: [saleId], references: [id], onDelete: Cascade)
+  store  Store  @relation(fields: [storeId], references: [id])
 
+  @@index([tenantId])
   @@index([saleId])
   @@index([storeId])
 }
 
 model CashClosure {
-  id                 String            @id @default(uuid())
-  name               String
-  note               String?
-  createdById        String
-  fromDate           DateTime
-  toDate             DateTime
-  totalCash          Decimal           @db.Decimal(12, 2)
-  totalTransfer      Decimal           @db.Decimal(12, 2)
-  totalSale          Decimal           @db.Decimal(12, 2)
-  totalMessengerCost Decimal           @db.Decimal(12, 2)
-  netTotal           Decimal           @db.Decimal(12, 2)
-  totalPerfumes      Int
-  pendingMoney       Decimal           @default(0) @db.Decimal(12, 2)
-  pendingCash        Decimal           @default(0) @db.Decimal(12, 2)
-  pendingMessengerPay Decimal          @default(0) @db.Decimal(12, 2)
-  internalSale       Decimal           @default(0) @db.Decimal(12, 2)
-  generalSale        Decimal           @default(0) @db.Decimal(12, 2)
-  status             CashClosureStatus @default(PENDING)
-  createdAt          DateTime          @default(now())
-  updatedAt          DateTime          @updatedAt
-  deletedAt          DateTime?
+  id                  String            @id @default(uuid())
+  tenantId            String            @default("default")
+  name                String
+  note                String?
+  createdById         String
+  fromDate            DateTime
+  toDate              DateTime
+  totalCash           Decimal           @db.Decimal(12, 2)
+  totalTransfer       Decimal           @db.Decimal(12, 2)
+  totalSale           Decimal           @db.Decimal(12, 2)
+  totalMessengerCost  Decimal           @db.Decimal(12, 2)
+  netTotal            Decimal           @db.Decimal(12, 2)
+  totalPerfumes       Int
+  pendingMoney        Decimal           @default(0) @db.Decimal(12, 2)
+  pendingCash         Decimal           @default(0) @db.Decimal(12, 2)
+  pendingMessengerPay Decimal           @default(0) @db.Decimal(12, 2)
+  internalSale        Decimal           @default(0) @db.Decimal(12, 2)
+  generalSale         Decimal           @default(0) @db.Decimal(12, 2)
+  status              CashClosureStatus @default(PENDING)
+  createdAt           DateTime          @default(now())
+  updatedAt           DateTime          @updatedAt
+  deletedAt           DateTime?
 
-  creator User @relation("CashClosureCreator", fields: [createdById], references: [id])
+  tenant  Tenant              @relation(fields: [tenantId], references: [id], onDelete: Restrict)
+  creator User                @relation("CashClosureCreator", fields: [createdById], references: [id])
   details CashClosureDetail[]
 
+  @@index([tenantId])
+  @@index([tenantId, fromDate, toDate])
   @@index([createdById])
   @@index([fromDate, toDate])
   @@index([status])
@@ -240,54 +299,65 @@ model CashClosure {
 
 model CashClosureDetail {
   id        String @id @default(uuid())
+  tenantId  String @default("default")
   closureId String
   saleId    String
 
+  tenant  Tenant      @relation(fields: [tenantId], references: [id], onDelete: Restrict)
   closure CashClosure @relation(fields: [closureId], references: [id], onDelete: Cascade)
   sale    Sale        @relation(fields: [saleId], references: [id])
 
   @@unique([closureId, saleId])
+  @@index([tenantId])
   @@index([saleId])
 }
 
 model InventoryReport {
-  id                  String   @id @default(uuid())
+  id                  String    @id @default(uuid())
+  tenantId            String    @default("default")
   name                String
   note                String?
   fromDate            DateTime
   toDate              DateTime
   createdById         String
   totalProducts       Int
-  totalInventoryValue Decimal  @db.Decimal(14, 2)
-  createdAt           DateTime @default(now())
+  totalInventoryValue Decimal   @db.Decimal(14, 2)
+  createdAt           DateTime  @default(now())
   deletedAt           DateTime?
 
-  creator User @relation("InventoryReportCreator", fields: [createdById], references: [id])
+  tenant  Tenant                  @relation(fields: [tenantId], references: [id], onDelete: Restrict)
+  creator User                    @relation("InventoryReportCreator", fields: [createdById], references: [id])
   details InventoryReportDetail[]
 
+  @@index([tenantId])
+  @@index([tenantId, createdAt])
   @@index([createdById])
   @@index([createdAt])
 }
 
 model InventoryReportDetail {
-  id                String  @id @default(uuid())
-  inventoryReportId String
-  productId         String
-  productName       String
+  id                 String  @id @default(uuid())
+  tenantId           String  @default("default")
+  inventoryReportId  String
+  productId          String
+  productName        String
   productDescription String?
-  purchasePrice     Decimal @db.Decimal(12, 2)
-  stock             Int
-  inventoryValue    Decimal @db.Decimal(14, 2)
+  purchasePrice      Decimal @db.Decimal(12, 2)
+  stock              Int
+  inventoryValue     Decimal @db.Decimal(14, 2)
 
-  report InventoryReport @relation(fields: [inventoryReportId], references: [id], onDelete: Cascade)
-  product Store          @relation(fields: [productId], references: [id])
+  tenant  Tenant          @relation(fields: [tenantId], references: [id], onDelete: Restrict)
+  report  InventoryReport @relation(fields: [inventoryReportId], references: [id], onDelete: Cascade)
+  product Store           @relation(fields: [productId], references: [id])
 
+  @@index([tenantId])
   @@index([inventoryReportId])
   @@index([productId])
 }
 
 model AuditLog {
   id         String   @id @default(uuid())
+  tenantId   String   @default("default")
   actorId    String?
   action     String
   resource   String
@@ -297,8 +367,10 @@ model AuditLog {
   userAgent  String?
   createdAt  DateTime @default(now())
 
-  actor User? @relation(fields: [actorId], references: [id], onDelete: SetNull)
+  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Restrict)
+  actor  User?  @relation(fields: [actorId], references: [id], onDelete: SetNull)
 
+  @@index([tenantId])
   @@index([actorId])
   @@index([resource, resourceId])
   @@index([createdAt])

@@ -1,21 +1,71 @@
 services:
+  api:
+    build:
+      context: .
+      target: runtime
+    container_name: oroaroma-v2-api
+    restart: unless-stopped
+    environment:
+      DATABASE_URL: postgresql://${POSTGRES_USER:-postgres}:${POSTGRES_PASSWORD:-postgres}@postgres:5432/${POSTGRES_DB:-oroaroma_v2}?schema=public
+      PORT: 3000
+      HOST: 0.0.0.0
+      NODE_ENV: production
+      JWT_SECRET: ${JWT_SECRET:-change-me-with-a-long-random-secret-for-local-testing}
+      JWT_EXPIRES_IN: ${JWT_EXPIRES_IN:-7d}
+      REFRESH_TOKEN_EXPIRES_DAYS: ${REFRESH_TOKEN_EXPIRES_DAYS:-30}
+      DEFAULT_TENANT_ID: ${DEFAULT_TENANT_ID:-default}
+      TENANT_HEADER_NAME: ${TENANT_HEADER_NAME:-x-tenant-id}
+      CORS_ORIGINS: ${CORS_ORIGINS:-http://localhost:9000,http://localhost:9100,http://localhost:5173}
+      BCRYPT_ROUNDS: ${BCRYPT_ROUNDS:-12}
+      DEFAULT_SELLER_NAME: ${DEFAULT_SELLER_NAME:-admin}
+      CASH_CLOSURE_MAX_SALES: ${CASH_CLOSURE_MAX_SALES:-500}
+      BUSINESS_DAY_START_HOUR: ${BUSINESS_DAY_START_HOUR:-7}
+      DEFAULT_PAGE_SIZE: ${DEFAULT_PAGE_SIZE:-100}
+      STORAGE_DRIVER: ${STORAGE_DRIVER:-local}
+      UPLOAD_ROOT: /app/uploads
+      UPLOAD_PUBLIC_BASE_PATH: ${UPLOAD_PUBLIC_BASE_PATH:-/uploads}
+      UPLOAD_MAX_IMAGE_SIZE_MB: ${UPLOAD_MAX_IMAGE_SIZE_MB:-5}
+      UPLOAD_ALLOWED_IMAGE_MIME_TYPES: ${UPLOAD_ALLOWED_IMAGE_MIME_TYPES:-image/jpeg:.jpg,image/png:.png,image/webp:.webp,image/avif:.avif}
+      OBJECT_STORAGE_ENDPOINT: ${OBJECT_STORAGE_ENDPOINT:-}
+      OBJECT_STORAGE_REGION: ${OBJECT_STORAGE_REGION:-}
+      OBJECT_STORAGE_BUCKET: ${OBJECT_STORAGE_BUCKET:-}
+      OBJECT_STORAGE_ACCESS_KEY_ID: ${OBJECT_STORAGE_ACCESS_KEY_ID:-}
+      OBJECT_STORAGE_SECRET_ACCESS_KEY: ${OBJECT_STORAGE_SECRET_ACCESS_KEY:-}
+      OBJECT_STORAGE_PUBLIC_BASE_URL: ${OBJECT_STORAGE_PUBLIC_BASE_URL:-}
+      CURRENCY_CODE: ${CURRENCY_CODE:-DOP}
+      CURRENCY_COUNTRY: ${CURRENCY_COUNTRY:-DO}
+      CURRENCY_SYMBOL: ${CURRENCY_SYMBOL:-RD$}
+      CURRENCY_GROUP_SEPARATOR: ${CURRENCY_GROUP_SEPARATOR:-,}
+      CURRENCY_DECIMAL_SEPARATOR: ${CURRENCY_DECIMAL_SEPARATOR:-.}
+      CURRENCY_MINOR_UNIT_DIGITS: ${CURRENCY_MINOR_UNIT_DIGITS:-2}
+      CURRENCY_TRIM_ZERO_MINOR_UNITS: ${CURRENCY_TRIM_ZERO_MINOR_UNITS:-true}
+      CURRENCY_SYMBOL_SPACING: ${CURRENCY_SYMBOL_SPACING:-false}
+    ports:
+      - "${API_BIND_ADDRESS:-0.0.0.0}:${API_PORT:-3000}:3000"
+    volumes:
+      - oroaroma_v2_uploads:/app/uploads
+    depends_on:
+      postgres:
+        condition: service_healthy
+
   postgres:
     image: postgres:16-alpine
     container_name: oroaroma-v2-postgres
     restart: unless-stopped
     environment:
-      POSTGRES_DB: oroaroma_v2
-      POSTGRES_USER: postgres
-      POSTGRES_PASSWORD: postgres
+      POSTGRES_DB: ${POSTGRES_DB:-oroaroma_v2}
+      POSTGRES_USER: ${POSTGRES_USER:-postgres}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-postgres}
     ports:
-      - "7567:5432"
+      - "${POSTGRES_BIND_ADDRESS:-127.0.0.1}:${POSTGRES_PORT:-7567}:5432"
     volumes:
       - oroaroma_v2_postgres_data:/var/lib/postgresql/data
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U postgres -d oroaroma_v2"]
+      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER:-postgres} -d $${POSTGRES_DB:-oroaroma_v2}"]
       interval: 10s
       timeout: 5s
       retries: 5
 
 volumes:
   oroaroma_v2_postgres_data:
+  oroaroma_v2_uploads:

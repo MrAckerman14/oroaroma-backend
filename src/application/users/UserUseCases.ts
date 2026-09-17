@@ -162,6 +162,7 @@ export class UserUseCases {
     }
 
     const where = {
+      ...this.actorTenantWhere(actor),
       deletedAt: null,
       status: 'ACTIVE' as const,
       ...(!isAdmin ? {
@@ -269,6 +270,7 @@ export class UserUseCases {
     const rangeDays = this.rangeDays(range);
     const roleKeys = this.dashboardRoleKeys(input.roleKeys, actor);
     const where = {
+      ...this.actorTenantWhere(actor),
       deletedAt: null,
       ...(roleKeys ? {
         roleAssignments: {
@@ -295,9 +297,9 @@ export class UserUseCases {
       const roleKeys = user.roleAssignments.map((assignment) => canonicalRoleKey(assignment.role.key));
       const roleNames = user.roleAssignments.map((assignment) => this.roleDisplayName(assignment.role.key, assignment.role.name));
       const [employeeStats, messengerStats, sellerStats] = await Promise.all([
-        this.salesStats({ employeeId: user.id }, createdAt, rangeDays),
-        this.messengerStats(user.id, createdAt),
-        this.sellerStats(user.id, createdAt)
+        this.salesStats({ employeeId: user.id, tenantId: user.tenantId }, createdAt, rangeDays),
+        this.messengerStats(user.id, createdAt, undefined, user.tenantId),
+        this.sellerStats(user.id, createdAt, user.tenantId)
       ]);
       const primaryStats = roleKeys.includes('collaborator') ? sellerStats : employeeStats;
       const deliveriesCount = roleKeys.includes('messenger')
@@ -497,7 +499,7 @@ export class UserUseCases {
   }
 
   private async salesStats(
-    where: { employeeId?: string; sellerId?: string },
+    where: { employeeId?: string; sellerId?: string; tenantId?: string },
     createdAt: ReturnType<typeof buildCreatedAtFilter>,
     rangeDays: number
   ) {
@@ -565,10 +567,11 @@ export class UserUseCases {
     };
   }
 
-  private async sellerStats(sellerId: string, createdAt: ReturnType<typeof buildCreatedAtFilter>) {
+  private async sellerStats(sellerId: string, createdAt: ReturnType<typeof buildCreatedAtFilter>, tenantId?: string) {
     const [sales, shipping] = await Promise.all([
       this.prisma.sale.findMany({
         where: {
+          ...(tenantId ? { tenantId } : {}),
           sellerId,
           status: 'FINALIZED',
           deletedAt: null,
@@ -580,6 +583,7 @@ export class UserUseCases {
       }),
       this.prisma.sale.aggregate({
         where: {
+          ...(tenantId ? { tenantId } : {}),
           sellerId,
           status: { in: ['FINALIZED', 'CANCELLED'] },
           deletedAt: null,
@@ -631,12 +635,14 @@ export class UserUseCases {
   private async messengerStats(
     messengerId: string,
     createdAt: ReturnType<typeof buildCreatedAtFilter>,
-    actor?: AuthenticatedUser
+    actor?: AuthenticatedUser,
+    tenantId?: string
   ) {
     const scopedWhere = this.userStatsAccessWhere(actor);
     const [completed, pending] = await Promise.all([
       this.prisma.sale.aggregate({
         where: {
+          ...(tenantId ? { tenantId } : {}),
           messengerId,
           status: { in: ['FINALIZED', 'CANCELLED'] },
           deletedAt: null,
@@ -648,6 +654,7 @@ export class UserUseCases {
       }),
       this.prisma.sale.aggregate({
         where: {
+          ...(tenantId ? { tenantId } : {}),
           messengerId,
           status: 'DELIVERY_PENDING',
           deletedAt: null,
@@ -705,6 +712,7 @@ export class UserUseCases {
     if (canReadGlobal) return {};
 
     return {
+      tenantId: actor.tenantId,
       OR: [
         { employeeId: actor.id },
         { sellerId: actor.id },
@@ -740,6 +748,7 @@ export class UserUseCases {
   private publicUserSelect() {
     return {
       id: true,
+      tenantId: true,
       name: true,
       email: true,
       status: true,
@@ -805,6 +814,10 @@ export class UserUseCases {
     return actor?.roles.some((role) => hasRoleKey(role.roleKey, roles)) ?? false;
   }
 
+  private actorTenantWhere(actor?: AuthenticatedUser) {
+    return actor ? { tenantId: actor.tenantId } : {};
+  }
+
   private presentUser<T extends { status: string }>(user: T) {
     const userWithRoles = user as unknown as {
       roleAssignments?: Array<{ role?: { key: string; name: string } }>;
@@ -832,7 +845,9 @@ export class UserUseCases {
 
   private presentRole<T extends { key: string; name: string }>(role: T) {
     const name = this.roleDisplayName(role.key, role.name);
-    const { key: _key, ...rest } = role;
+    const rest = Object.fromEntries(
+      Object.entries(role).filter(([key]) => key !== 'key')
+    ) as Omit<T, 'key'>;
     return {
       ...rest,
       name,

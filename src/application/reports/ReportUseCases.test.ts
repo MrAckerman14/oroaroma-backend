@@ -5,6 +5,7 @@ import { ReportUseCases } from './ReportUseCases.js';
 
 const admin: AuthenticatedUser = {
   id: 'admin-1',
+  tenantId: 'default',
   email: 'admin@oroaroma.local',
   name: 'Admin',
   status: 'ACTIVE',
@@ -33,6 +34,7 @@ const adminWithDetails: AuthenticatedUser = {
 
 const employeeActor: AuthenticatedUser = {
   id: 'employee-1',
+  tenantId: 'default',
   email: 'employee@oroaroma.local',
   name: 'Empleado',
   status: 'ACTIVE',

@@ -1,4 +1,5 @@
 import type { FastifyInstance } from 'fastify';
+import { env } from '../../../config/env.js';
 
 const mutatingMethods = new Set(['POST', 'PUT', 'PATCH', 'DELETE']);
 
@@ -16,6 +17,7 @@ export function registerAuditHook(app: FastifyInstance) {
     try {
       await app.container.prisma.auditLog.create({
         data: {
+          tenantId: request.authUser?.tenantId ?? request.tenantId ?? env.DEFAULT_TENANT_ID,
           actorId: request.authUser?.id ?? null,
           action: request.method,
           resource,

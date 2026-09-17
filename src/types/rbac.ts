@@ -49,6 +49,7 @@ export interface PermissionDescriptor {
 
 export interface AuthenticatedUser {
   id: string;
+  tenantId: string;
   email: string;
   name: string;
   status: 'ACTIVE' | 'INACTIVE' | 'BLOCKED';

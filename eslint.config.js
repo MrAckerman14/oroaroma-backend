@@ -13,7 +13,8 @@ export default tseslint.config(
       'scripts/**',
       'test/**',
       '**/*.test.ts',
-      'oroaroma-admin-frontend/**'
+      'oroaroma-admin-frontend/**',
+      'zoko-hola-admin-frontend/**'
     ]
   },
   js.configs.recommended,

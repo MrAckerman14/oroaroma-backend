@@ -15,8 +15,11 @@ export class LoginUseCase {
     private readonly passwordHasher: PasswordHasher
   ) {}
 
-  async execute(input: LoginInput, metadata?: { userAgent?: string; ipAddress?: string }): Promise<AuthSession> {
-    const rawUser = await this.users.findRawUserByEmail(input.email);
+  async execute(
+    input: LoginInput,
+    options: { tenantId: string; userAgent?: string; ipAddress?: string }
+  ): Promise<AuthSession> {
+    const rawUser = await this.users.findRawUserByEmail(input.email, options.tenantId);
     if (!rawUser || rawUser.status !== 'ACTIVE') {
       throw new UnauthorizedError('Credenciales invalidas');
     }
@@ -29,12 +32,12 @@ export class LoginUseCase {
     const user = this.users.toAuthenticatedUser(rawUser);
     const accessToken = this.createAccessToken(user);
 
-    const refreshToken = await this.createRefreshSession(user.id, metadata);
+    const refreshToken = await this.createRefreshSession(user.id, user.tenantId, options);
 
     return { accessToken, refreshToken, user };
   }
 
-  async refresh(refreshToken: string, metadata?: { userAgent?: string; ipAddress?: string }): Promise<AuthSession> {
+  async refresh(refreshToken: string): Promise<AuthSession> {
     const tokenHash = this.hashRefreshToken(refreshToken);
     const session = await this.prisma.refreshSession.findUnique({
       where: { tokenHash },
@@ -87,15 +90,16 @@ export class LoginUseCase {
     });
   }
 
-  private createAccessToken(user: { id: string; email: string; name: string }) {
+  private createAccessToken(user: { id: string; tenantId: string; email: string; name: string }) {
     return this.app.jwt.sign(
-      { email: user.email, name: user.name, type: 'access' },
+      { email: user.email, name: user.name, type: 'access', tenantId: user.tenantId },
       { sub: user.id, expiresIn: env.JWT_EXPIRES_IN }
     );
   }
 
   private async createRefreshSession(
     userId: string,
+    tenantId: string,
     metadata?: { userAgent?: string; ipAddress?: string },
     client: Pick<PrismaClient, 'refreshSession'> = this.prisma
   ) {
@@ -107,6 +111,7 @@ export class LoginUseCase {
     await client.refreshSession.create({
       data: {
         userId,
+        tenantId,
         tokenHash,
         expiresAt,
         userAgent: metadata?.userAgent ?? null,

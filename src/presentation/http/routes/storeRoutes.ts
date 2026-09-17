@@ -1,11 +1,8 @@
 import type { FastifyInstance, FastifyRequest } from 'fastify';
-import { readFile, stat } from 'node:fs/promises';
 import path from 'node:path';
 import { ForbiddenError, ValidationAppError } from '../../../shared/errors/AppError.js';
 import { StoreUseCases } from '../../../application/stores/StoreUseCases.js';
 import type { UploadFileInput } from '../../../application/files/StorageService.js';
-import { normalizedUploadPublicBasePath } from '../../../config/env.js';
-import { resolveUploadRoot } from '../../../infrastructure/storage/storageFactory.js';
 import { buildZipArchive, type ZipFileInput } from '../../../shared/utils/zip.js';
 import { canonicalRoleKey, hasRoleKey } from '../../../shared/utils/roleKeys.js';
 import { idParamsSchema } from '../schemas/commonSchemas.js';
@@ -58,13 +55,12 @@ export async function storeRoutes(app: FastifyInstance) {
 
       for (const image of images) {
         if (!image.imagePath) continue;
-        const absolutePath = publicUploadPathToAbsolutePath(image.imagePath);
-        const { data, metadata } = await readLocalUploadFile(absolutePath);
+        const file = await app.container.storage.readByPublicPath(image.imagePath);
 
         files.push({
           name: uniqueZipName(files.map((file) => file.name), image.name, image.imagePath),
-          data,
-          modifiedAt: metadata.mtime
+          data: file.data,
+          modifiedAt: file.modifiedAt
         });
       }
 
@@ -85,15 +81,14 @@ export async function storeRoutes(app: FastifyInstance) {
     async (request, reply) => {
       const params = idParamsSchema.parse(request.params);
       const image = await stores.imageDownload(params.id);
-      const absolutePath = publicUploadPathToAbsolutePath(image.imagePath);
-      const { data, metadata } = await readLocalUploadFile(absolutePath);
+      const file = await app.container.storage.readByPublicPath(image.imagePath);
       const filename = downloadFilename(image.name, image.imagePath);
 
       return reply
-        .header('Content-Type', contentTypeFromPath(image.imagePath))
-        .header('Content-Length', metadata.size)
+        .header('Content-Type', file.mimeType)
+        .header('Content-Length', file.size)
         .header('Content-Disposition', `attachment; filename="${filename}"`)
-        .send(data);
+        .send(file.data);
     }
   );
 
@@ -165,34 +160,6 @@ export async function storeRoutes(app: FastifyInstance) {
   );
 }
 
-function publicUploadPathToAbsolutePath(publicPath: string) {
-  if (!publicPath.startsWith(`${normalizedUploadPublicBasePath}/`)) {
-    throw new ValidationAppError('La ruta de la imagen no pertenece al almacenamiento local');
-  }
-
-  const relativePath = publicPath.slice(`${normalizedUploadPublicBasePath}/`.length);
-  const uploadRoot = path.resolve(resolveUploadRoot());
-  const absolutePath = path.resolve(uploadRoot, relativePath);
-
-  if (!absolutePath.startsWith(`${uploadRoot}${path.sep}`) && absolutePath !== uploadRoot) {
-    throw new ValidationAppError('La ruta de la imagen no es valida');
-  }
-
-  return absolutePath;
-}
-
-async function readLocalUploadFile(absolutePath: string) {
-  try {
-    const [data, metadata] = await Promise.all([
-      readFile(absolutePath),
-      stat(absolutePath)
-    ]);
-    return { data, metadata };
-  } catch {
-    throw new ValidationAppError('La imagen no esta disponible en el almacenamiento');
-  }
-}
-
 function downloadFilename(name: string, imagePath: string) {
   return `${safeFileName(name)}${path.extname(imagePath) || '.img'}`;
 }
@@ -218,15 +185,6 @@ function safeFileName(value: string) {
     .replace(/[^a-zA-Z0-9._-]+/g, '-')
     .replace(/^-+|-+$/g, '')
     .slice(0, 80) || 'producto';
-}
-
-function contentTypeFromPath(imagePath: string) {
-  const extension = path.extname(imagePath).toLowerCase();
-  if (extension === '.jpg' || extension === '.jpeg') return 'image/jpeg';
-  if (extension === '.png') return 'image/png';
-  if (extension === '.webp') return 'image/webp';
-  if (extension === '.avif') return 'image/avif';
-  return 'application/octet-stream';
 }
 
 async function canReadStores(request: FastifyRequest) {

@@ -37,6 +37,7 @@ describe('UserUseCases listOptions', () => {
   it('no entrega usuarios al colaborador en el endpoint de opciones', async () => {
     const actor: AuthenticatedUser = {
       id: 'seller-1',
+      tenantId: 'default',
       email: 'seller@oroaroma.local',
       name: 'Colaborador',
       status: 'ACTIVE',
@@ -73,6 +74,7 @@ describe('UserUseCases listOptions', () => {
   it('permite al vendedor ver colaboradores y mensajeros para crear ventas', async () => {
     const actor: AuthenticatedUser = {
       id: 'employee-1',
+      tenantId: 'default',
       email: 'employee@oroaroma.local',
       name: 'Vendedor',
       status: 'ACTIVE',
@@ -138,6 +140,7 @@ describe('UserUseCases listOptions', () => {
   it('oculta dinero ganado de mensajero al vendedor y mantiene pendientes de sus ventas', async () => {
     const actor: AuthenticatedUser = {
       id: 'employee-1',
+      tenantId: 'default',
       email: 'employee@oroaroma.local',
       name: 'Vendedor',
       status: 'ACTIVE',
@@ -212,6 +215,7 @@ describe('UserUseCases listOptions', () => {
   it('mantiene las estadisticas de mensajero del supervisor limitadas a sus ventas', async () => {
     const actor: AuthenticatedUser = {
       id: 'supervisor-1',
+      tenantId: 'default',
       email: 'supervisor@oroaroma.local',
       name: 'Supervisor',
       status: 'ACTIVE',
@@ -279,6 +283,7 @@ describe('UserUseCases dashboard', () => {
   it('limita el listado del supervisor a vendedores y supervisores', async () => {
     const actor: AuthenticatedUser = {
       id: 'supervisor-1',
+      tenantId: 'default',
       email: 'supervisor@oroaroma.local',
       name: 'Supervisor',
       status: 'ACTIVE',
@@ -351,6 +356,7 @@ describe('UserUseCases dashboard', () => {
   it('usa vendedores y supervisores por defecto para el dashboard de supervisor', async () => {
     const actor: AuthenticatedUser = {
       id: 'supervisor-1',
+      tenantId: 'default',
       email: 'supervisor@oroaroma.local',
       name: 'Supervisor',
       status: 'ACTIVE',

@@ -5,6 +5,7 @@ import { InventoryUseCases } from './InventoryUseCases.js';
 
 const employee: AuthenticatedUser = {
   id: 'employee-1',
+  tenantId: 'default',
   email: 'empleado@oroaroma.local',
   name: 'Empleado',
   status: 'ACTIVE',

@@ -114,6 +114,21 @@ const roleDefinitions = {
 } as const;
 
 async function main() {
+  await prisma.tenant.upsert({
+    where: { id: 'default' },
+    update: {
+      slug: 'default',
+      name: 'Oro Aroma',
+      status: 'ACTIVE'
+    },
+    create: {
+      id: 'default',
+      slug: 'default',
+      name: 'Oro Aroma',
+      status: 'ACTIVE'
+    }
+  });
+
   for (const [key, resource, action, scope] of permissions) {
     await prisma.permission.upsert({
       where: { key },

@@ -11,6 +11,7 @@ function actor(permissionKey: AuthenticatedUser['permissions'][number]['key']): 
 
   return {
     id: 'user-1',
+    tenantId: 'default',
     email: 'user@oroaroma.local',
     name: 'User',
     status: 'ACTIVE',

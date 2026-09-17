@@ -14,7 +14,13 @@ const envSchema = z.object({
   JWT_SECRET: z.string().min(32, 'JWT_SECRET debe tener al menos 32 caracteres'),
   JWT_EXPIRES_IN: z.string().default('7d'),
   REFRESH_TOKEN_EXPIRES_DAYS: z.coerce.number().int().positive().default(30),
-  CORS_ORIGINS: z.string().default('http://localhost:9000,http://localhost:9100,https://fronted-oro-aroma-u6s0.onrender.com'),
+  DEFAULT_TENANT_ID: z.string().min(1).default('default'),
+  TENANT_HEADER_NAME: z.string().min(1).default('x-tenant-id'),
+  CORS_ORIGINS: z
+    .string()
+    .default(
+      'http://localhost:9000,http://localhost:9100,http://localhost:5173,http://177.7.45.94,http://oroaroma.testing,http://oroaroma.177.7.45.94.sslip.io,https://fronted-oro-aroma-u6s0.onrender.com'
+    ),
   BCRYPT_ROUNDS: z.coerce.number().int().min(8).max(15).default(12),
   DEFAULT_SELLER_NAME: z.string().min(2).default('admin'),
   EMPLOYEE_BONUS_BASE_DAYS: z.coerce.number().int().positive().max(366).default(30),

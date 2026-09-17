@@ -10,6 +10,7 @@ describe('LoginUseCase.refresh', () => {
   it('mantiene el refresh token vigente para evitar cerrar sesion por refresh concurrente', async () => {
     const authenticatedUser: AuthenticatedUser = {
       id: 'user-1',
+      tenantId: 'default',
       email: 'user@test.local',
       name: 'Usuario Test',
       status: 'ACTIVE',

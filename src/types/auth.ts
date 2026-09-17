@@ -5,6 +5,7 @@ export interface AccessTokenPayload {
   email: string;
   name: string;
   type: 'access';
+  tenantId?: string;
 }
 
 export interface LoginInput {

@@ -14,22 +14,22 @@ type UserWithAccess = NonNullable<Awaited<ReturnType<PrismaUserRepository['findR
 export class PrismaUserRepository {
   constructor(private readonly prisma: PrismaClient) {}
 
-  findRawUserByEmail(email: string) {
+  findRawUserByEmail(email: string, tenantId: string) {
     return this.prisma.user.findFirst({
-      where: { email, deletedAt: null },
+      where: { email, tenantId, deletedAt: null },
       include: this.accessIncludes()
     });
   }
 
-  findRawUserById(id: string) {
+  findRawUserById(id: string, tenantId: string) {
     return this.prisma.user.findFirst({
-      where: { id, deletedAt: null },
+      where: { id, tenantId, deletedAt: null },
       include: this.accessIncludes()
     });
   }
 
-  async findAuthenticatedById(id: string): Promise<AuthenticatedUser | null> {
-    const user = await this.findRawUserById(id);
+  async findAuthenticatedById(id: string, tenantId: string): Promise<AuthenticatedUser | null> {
+    const user = await this.findRawUserById(id, tenantId);
     return user ? this.toAuthenticatedUser(user) : null;
   }
 
@@ -65,6 +65,7 @@ export class PrismaUserRepository {
 
     return {
       id: user.id,
+      tenantId: user.tenantId,
       email: user.email,
       name: user.name,
       status: user.status,

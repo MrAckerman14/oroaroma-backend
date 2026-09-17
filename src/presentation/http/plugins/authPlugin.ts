@@ -1,4 +1,5 @@
 import fp from 'fastify-plugin';
+import { env } from '../../../config/env.js';
 import { ForbiddenError, UnauthorizedError } from '../../../shared/errors/AppError.js';
 import { labelFromMap, permissionActionLabels, permissionResourceLabels } from '../../../shared/utils/spanishLabels.js';
 import type { AccessTokenPayload } from '../../../types/auth.js';
@@ -19,11 +20,13 @@ export const authPlugin = fp(async (app) => {
       throw new UnauthorizedError('Token invalido');
     }
 
-    const user = await app.container.users.findAuthenticatedById(payload.sub);
+    const tenantId = payload.tenantId ?? env.DEFAULT_TENANT_ID;
+    const user = await app.container.users.findAuthenticatedById(payload.sub, tenantId);
     if (!user) {
       throw new UnauthorizedError('Usuario no encontrado');
     }
 
+    request.tenantId = user.tenantId;
     request.authUser = user;
   });
 
