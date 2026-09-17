@@ -44,7 +44,16 @@ export class LoginUseCase {
       include: {
         user: {
           include: {
-            tenant: true,
+            tenant: { include: { moduleSettings: true } },
+            platformRoles: {
+              include: {
+                role: {
+                  include: {
+                    permissions: { include: { permission: true } }
+                  }
+                }
+              }
+            },
             roleAssignments: {
               include: {
                 role: {
@@ -67,7 +76,7 @@ export class LoginUseCase {
       throw new UnauthorizedError('Token de refresco invalido o expirado');
     }
 
-    if (session.user.deletedAt || session.user.status !== 'ACTIVE') {
+    if (session.user.deletedAt || session.user.status !== 'ACTIVE' || session.user.tenant.status !== 'ACTIVE') {
       throw new UnauthorizedError('Usuario no activo');
     }
 

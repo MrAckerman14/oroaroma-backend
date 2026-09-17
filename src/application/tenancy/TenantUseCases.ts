@@ -16,7 +16,15 @@ export class TenantUseCases {
   list() {
     return this.prisma.tenant.findMany({
       orderBy: { createdAt: 'desc' },
-      select: { id: true, slug: true, name: true, status: true, createdAt: true, _count: { select: { users: true } } }
+      select: {
+        id: true,
+        slug: true,
+        name: true,
+        status: true,
+        createdAt: true,
+        moduleSettings: { orderBy: { moduleKey: 'asc' } },
+        _count: { select: { users: true } }
+      }
     });
   }
 
@@ -32,6 +40,14 @@ export class TenantUseCases {
     const passwordHash = await this.passwordHasher.hash(input.adminPassword);
     return this.prisma.$transaction(async (tx) => {
       const tenant = await tx.tenant.create({ data: { slug, name: input.name.trim() } });
+      const modules = await tx.moduleCatalog.findMany();
+      await tx.tenantModuleSetting.createMany({
+        data: modules.map((module) => ({
+          tenantId: tenant.id,
+          moduleKey: module.key,
+          enabled: module.defaultEnabled
+        }))
+      });
       const sourceRoles = await tx.role.findMany({
         where: { tenantId: 'default' },
         include: { permissions: true }
@@ -68,5 +84,45 @@ export class TenantUseCases {
       throw new ValidationAppError('La empresa principal no se puede suspender ni archivar');
     }
     return this.prisma.tenant.update({ where: { id }, data: { status }, select: { id: true, slug: true, name: true, status: true } });
+  }
+
+  listModuleCatalog() {
+    return this.prisma.moduleCatalog.findMany({ orderBy: { name: 'asc' } });
+  }
+
+  async updateModules(id: string, modules: Array<{ key: string; enabled: boolean }>) {
+    const tenant = await this.prisma.tenant.findUnique({ where: { id }, select: { id: true } });
+    if (!tenant) throw new ValidationAppError('La empresa indicada no existe');
+
+    const knownModules = await this.prisma.moduleCatalog.findMany({
+      where: { key: { in: modules.map((module) => module.key) } },
+      select: { key: true }
+    });
+    if (knownModules.length !== modules.length) {
+      throw new ValidationAppError('La configuracion contiene modulos desconocidos');
+    }
+
+    await this.prisma.$transaction(modules.map((module) => this.prisma.tenantModuleSetting.upsert({
+      where: { tenantId_moduleKey: { tenantId: id, moduleKey: module.key } },
+      update: { enabled: module.enabled },
+      create: { tenantId: id, moduleKey: module.key, enabled: module.enabled }
+    })));
+
+    return this.prisma.tenantModuleSetting.findMany({ where: { tenantId: id }, orderBy: { moduleKey: 'asc' } });
+  }
+
+  platformSecurityOverview() {
+    return this.prisma.platformRole.findMany({
+      orderBy: { name: 'asc' },
+      select: {
+        key: true,
+        name: true,
+        description: true,
+        permissions: {
+          select: { permission: { select: { key: true, resource: true, action: true, description: true } } }
+        },
+        _count: { select: { assignments: true } }
+      }
+    });
   }
 }

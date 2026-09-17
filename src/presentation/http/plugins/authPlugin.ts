@@ -1,9 +1,10 @@
 import fp from 'fastify-plugin';
 import { env } from '../../../config/env.js';
-import { ForbiddenError, UnauthorizedError } from '../../../shared/errors/AppError.js';
+import { ForbiddenError, ModuleDisabledError, UnauthorizedError } from '../../../shared/errors/AppError.js';
 import { labelFromMap, permissionActionLabels, permissionResourceLabels } from '../../../shared/utils/spanishLabels.js';
 import type { AccessTokenPayload } from '../../../types/auth.js';
 import type { RbacAction, RbacResource } from '../../../types/rbac.js';
+import type { PlatformPermissionKey, TenantModuleKey } from '../../../types/platform.js';
 
 export const authPlugin = fp(async (app) => {
   app.decorate('authenticate', async (request) => {
@@ -36,6 +37,11 @@ export const authPlugin = fp(async (app) => {
         throw new UnauthorizedError();
       }
 
+      const moduleKey = moduleForResource(resource);
+      if (moduleKey && !(request.authUser.enabledModules ?? []).includes(moduleKey)) {
+        throw new ModuleDisabledError(moduleKey);
+      }
+
       const decision = app.container.rbacPolicy.can({
         actor: request.authUser,
         resource,
@@ -50,4 +56,36 @@ export const authPlugin = fp(async (app) => {
       }
     };
   });
+
+  app.decorate('authorizePlatform', (permission: PlatformPermissionKey) => {
+    return async (request) => {
+      if (!request.authUser) throw new UnauthorizedError();
+      if (!(request.authUser.platformPermissions ?? []).includes(permission)) {
+        throw new ForbiddenError('No tienes permisos de plataforma para realizar esta accion');
+      }
+    };
+  });
+
+  app.decorate('requireTenantModule', (moduleKey: TenantModuleKey) => {
+    return async (request) => {
+      if (!request.authUser) throw new UnauthorizedError();
+      if (!(request.authUser.enabledModules ?? []).includes(moduleKey)) {
+        throw new ModuleDisabledError(moduleKey);
+      }
+    };
+  });
 });
+
+function moduleForResource(resource: RbacResource): TenantModuleKey | null {
+  const modules: Partial<Record<RbacResource, TenantModuleKey>> = {
+    users: 'users',
+    roles: 'users',
+    permissions: 'users',
+    stores: 'inventory',
+    sales: 'sales',
+    'cash-closures': 'cash-closures',
+    reports: 'cash-closures',
+    'inventory-reports': 'inventory-reports'
+  };
+  return modules[resource] ?? null;
+}

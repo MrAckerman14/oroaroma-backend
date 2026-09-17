@@ -16,7 +16,7 @@ export class PrismaUserRepository {
 
   findRawUserByEmail(email: string, tenantId: string) {
     return this.prisma.user.findFirst({
-      where: { email, tenantId, deletedAt: null },
+      where: { email, tenantId, deletedAt: null, tenant: { status: 'ACTIVE' } },
       include: this.accessIncludes()
     });
   }
@@ -30,7 +30,7 @@ export class PrismaUserRepository {
 
   findRawUserById(id: string, tenantId: string) {
     return this.prisma.user.findFirst({
-      where: { id, tenantId, deletedAt: null },
+      where: { id, tenantId, deletedAt: null, tenant: { status: 'ACTIVE' } },
       include: this.accessIncludes()
     });
   }
@@ -54,6 +54,14 @@ export class PrismaUserRepository {
     }));
 
     const permissionMap = new Map<string, PermissionDescriptor>();
+    const platformPermissionKeys = new Set<string>();
+
+    for (const assignment of user.platformRoles) {
+      if (assignment.expiresAt && assignment.expiresAt <= new Date()) continue;
+      for (const rolePermission of assignment.role.permissions) {
+        platformPermissionKeys.add(rolePermission.permission.key);
+      }
+    }
 
     for (const assignment of activeAssignments) {
       for (const rolePermission of assignment.role.permissions) {
@@ -80,13 +88,32 @@ export class PrismaUserRepository {
       status: user.status,
       statusLabel: labelFromMap(userStatusLabels, user.status),
       roles,
-      permissions: [...permissionMap.values()]
+      permissions: [...permissionMap.values()],
+      platformPermissions: [...platformPermissionKeys],
+      enabledModules: user.tenant.moduleSettings
+        .filter((setting) => setting.enabled)
+        .map((setting) => setting.moduleKey)
     };
   }
 
   private accessIncludes() {
     return {
-      tenant: true,
+      tenant: {
+        include: {
+          moduleSettings: true
+        }
+      },
+      platformRoles: {
+        include: {
+          role: {
+            include: {
+              permissions: {
+                include: { permission: true }
+              }
+            }
+          }
+        }
+      },
       roleAssignments: {
         include: {
           role: {

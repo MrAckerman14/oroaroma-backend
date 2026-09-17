@@ -16,7 +16,6 @@ const envSchema = z.object({
   REFRESH_TOKEN_EXPIRES_DAYS: z.coerce.number().int().positive().default(30),
   DEFAULT_TENANT_ID: z.string().min(1).default('default'),
   TENANT_HEADER_NAME: z.string().min(1).default('x-tenant-id'),
-  PLATFORM_ADMIN_EMAILS: z.string().default(''),
   CORS_ORIGINS: z
     .string()
     .default(
@@ -70,10 +69,6 @@ export const corsOrigins = [
     ...requiredCorsOrigins
   ])
 ];
-
-export const platformAdminEmails = new Set(
-  env.PLATFORM_ADMIN_EMAILS.split(',').map((email) => email.trim().toLowerCase()).filter(Boolean)
-);
 
 export const allowedImageMimeTypes = new Map(
   env.UPLOAD_ALLOWED_IMAGE_MIME_TYPES.split(',')

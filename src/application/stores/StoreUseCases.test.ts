@@ -40,7 +40,7 @@ describe('StoreUseCases', () => {
   it('muestra precio de venta y oculta precio de compra en el listado no administrativo', async () => {
     const { stores } = makeUseCases();
 
-    const result = await stores.list({ page: 1, pageSize: 10 });
+    const result = await stores.list('tenant-1', { page: 1, pageSize: 10 });
 
     expect(result.items[0]).toEqual({
       id: product.id,
@@ -62,7 +62,7 @@ describe('StoreUseCases', () => {
     const aProduct = { ...product, id: 'product-a', name: 'Ambar' };
     const { stores, prisma } = makeUseCases([zProduct, aProduct]);
 
-    const result = await stores.list({ page: 1, pageSize: 10 });
+    const result = await stores.list('tenant-1', { page: 1, pageSize: 10 });
 
     expect(prisma.store.findMany).toHaveBeenCalledWith(expect.objectContaining({
       orderBy: { name: 'asc' },
@@ -81,7 +81,7 @@ describe('StoreUseCases', () => {
       { storeId: secondProduct.id, _sum: { quantity: 99 } }
     ]);
 
-    const result = await stores.list({ page: 1, pageSize: 10 });
+    const result = await stores.list('tenant-1', { page: 1, pageSize: 10 });
 
     expect(result.items).toMatchObject([
       {
@@ -111,6 +111,7 @@ describe('StoreUseCases', () => {
     ]);
 
     const result = await stores.list(
+      'tenant-1',
       { page: 1, pageSize: 10 },
       { from: '2026-08-01', to: '2026-08-08' }
     );
@@ -125,7 +126,7 @@ describe('StoreUseCases', () => {
   it('incluye cantidad vendida en el listado no administrativo', async () => {
     const { stores } = makeUseCases();
 
-    const result = await stores.list({ page: 1, pageSize: 10 });
+    const result = await stores.list('tenant-1', { page: 1, pageSize: 10 });
 
     expect(result.items[0]).toMatchObject({
       quantitySold: 3,
@@ -138,7 +139,7 @@ describe('StoreUseCases', () => {
   it('mantiene los precios cuando se solicita la vista sensible', async () => {
     const { stores } = makeUseCases();
 
-    const result = await stores.list({ page: 1, pageSize: 10 }, { includeSensitivePrices: true });
+    const result = await stores.list('tenant-1', { page: 1, pageSize: 10 }, { includeSensitivePrices: true });
 
     expect(result.items[0]).toHaveProperty('purchasePrice');
     expect(result.items[0]).toHaveProperty('salePrice');
@@ -148,6 +149,7 @@ describe('StoreUseCases', () => {
     const { stores, prisma } = makeUseCases();
 
     await stores.list(
+      'tenant-1',
       { page: 1, pageSize: 10 },
       { from: '2026-06-01', to: '2026-06-07', minStock: 2, maxStock: 10 }
     );

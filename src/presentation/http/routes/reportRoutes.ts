@@ -66,7 +66,7 @@ export async function reportRoutes(app: FastifyInstance) {
     async (request) => {
       const params = idParamsSchema.parse(request.params);
       const input = updateCashClosureSchema.parse(request.body);
-      return { data: await reports.updateClosure(params.id, input) };
+      return { data: await reports.updateClosure(request.authUser!, params.id, input) };
     }
   );
 
@@ -76,7 +76,7 @@ export async function reportRoutes(app: FastifyInstance) {
     async (request) => {
       const params = idParamsSchema.parse(request.params);
       const input = closureStatusSchema.parse(request.body);
-      return { data: await reports.updateClosureStatus(params.id, input.status) };
+      return { data: await reports.updateClosureStatus(request.authUser!, params.id, input.status) };
     }
   );
 
@@ -85,7 +85,7 @@ export async function reportRoutes(app: FastifyInstance) {
     { preHandler: [app.authenticate, app.authorize('cash-closures', 'delete')] },
     async (request, reply) => {
       const params = idParamsSchema.parse(request.params);
-      await reports.softDeleteClosure(params.id);
+      await reports.softDeleteClosure(request.authUser!, params.id);
       return reply.status(204).send();
     }
   );

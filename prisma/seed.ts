@@ -217,6 +217,29 @@ async function main() {
       scope: PermissionScope.GLOBAL
     }
   });
+
+  const platformOwnerRole = await prisma.platformRole.findUnique({ where: { key: 'platform-owner' } });
+  if (platformOwnerRole) {
+    await prisma.platformRoleAssignment.upsert({
+      where: { userId_roleId: { userId: admin.id, roleId: platformOwnerRole.id } },
+      update: { expiresAt: null },
+      create: {
+        id: 'platform-owner-default',
+        userId: admin.id,
+        roleId: platformOwnerRole.id
+      }
+    });
+  }
+
+  const modules = await prisma.moduleCatalog.findMany();
+  await prisma.tenantModuleSetting.createMany({
+    data: modules.map((module) => ({
+      tenantId: 'default',
+      moduleKey: module.key,
+      enabled: module.defaultEnabled
+    })),
+    skipDuplicates: true
+  });
 }
 
 main()

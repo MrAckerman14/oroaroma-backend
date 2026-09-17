@@ -18,7 +18,9 @@ export async function accessRoutes(app: FastifyInstance) {
           scopeLabel: role.scopeLabel
         };
       }) ?? [],
-      permissions: request.authUser?.permissions ?? []
+      permissions: request.authUser?.permissions ?? [],
+      platformPermissions: request.authUser?.platformPermissions ?? [],
+      enabledModules: request.authUser?.enabledModules ?? []
     })
   );
 }

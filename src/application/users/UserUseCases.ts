@@ -63,10 +63,10 @@ export class UserUseCases {
     private readonly passwordHasher: PasswordHasher
   ) {}
 
-  async create(input: CreateUserInput) {
+  async create(tenantId: string, input: CreateUserInput) {
     const passwordHash = await this.passwordHasher.hash(input.password);
-    const existingUser = await this.prisma.user.findUnique({
-      where: { email: input.email },
+    const existingUser = await this.prisma.user.findFirst({
+      where: { email: input.email, tenantId },
       include: {
         roleAssignments: { include: { role: true } }
       }
@@ -93,23 +93,25 @@ export class UserUseCases {
           phone: input.phone ?? null,
           profileImagePath: input.profileImagePath ?? null,
           status: input.status,
+          tenantId,
           deletedAt: null
         }
       });
 
       if (input.roleKey) {
-        await this.replaceRole(existingUser.id, {
+        await this.replaceRole(existingUser.id, tenantId, {
           roleKey: input.roleKey,
           scope: input.scope,
           ...(input.storeId ? { storeId: input.storeId } : {})
         });
       }
 
-      return this.findById(existingUser.id);
+      return this.findById(existingUser.id, tenantId);
     }
 
     const user = await this.prisma.user.create({
       data: {
+        tenantId,
         name: input.name,
         email: input.email,
         passwordHash,
@@ -121,14 +123,14 @@ export class UserUseCases {
     });
 
     if (input.roleKey) {
-      await this.assignRole(user.id, {
+      await this.assignRole(user.id, tenantId, {
         roleKey: input.roleKey,
         scope: input.scope,
         ...(input.storeId ? { storeId: input.storeId } : {})
       });
     }
 
-    return this.findById(user.id);
+    return this.findById(user.id, tenantId);
   }
 
   async list(pagination: PaginationInput) {
@@ -359,9 +361,9 @@ export class UserUseCases {
     return this.paginated(items, total, input);
   }
 
-  async findById(id: string) {
+  async findById(id: string, tenantId: string) {
     const user = await this.prisma.user.findFirst({
-      where: { id, deletedAt: null },
+      where: { id, tenantId, deletedAt: null },
       select: this.publicUserSelect()
     });
 
@@ -369,8 +371,8 @@ export class UserUseCases {
     return this.presentUser(user);
   }
 
-  async update(id: string, input: UpdateUserInput) {
-    await this.findById(id);
+  async update(id: string, actor: AuthenticatedUser, input: UpdateUserInput) {
+    await this.findById(id, actor.tenantId);
     const passwordHash = input.password ? await this.passwordHasher.hash(input.password) : undefined;
 
     const user = await this.prisma.user.update({
@@ -387,7 +389,7 @@ export class UserUseCases {
     });
 
     if (input.roleKey) {
-      await this.replaceRole(id, {
+      await this.replaceRole(id, actor.tenantId, {
         roleKey: input.roleKey,
         scope: input.scope ?? 'GLOBAL',
         ...(input.storeId ? { storeId: input.storeId } : {})
@@ -397,8 +399,8 @@ export class UserUseCases {
     return this.presentUser(user);
   }
 
-  async softDelete(id: string) {
-    await this.findById(id);
+  async softDelete(id: string, actor: AuthenticatedUser) {
+    await this.findById(id, actor.tenantId);
     await this.prisma.user.update({
       where: { id },
       data: { deletedAt: new Date(), status: 'INACTIVE' }
@@ -425,9 +427,9 @@ export class UserUseCases {
     });
   }
 
-  async assignRole(userId: string, input: AssignRoleInput) {
-    await this.findById(userId);
-    const role = await this.findRoleByInputKey(input.roleKey);
+  async assignRole(userId: string, tenantId: string, input: AssignRoleInput) {
+    await this.findById(userId, tenantId);
+    const role = await this.findRoleByInputKey(input.roleKey, tenantId);
     if (!role) throw new ValidationAppError('Rol inexistente');
 
     if (input.scope === 'STORE' && !input.storeId) {
@@ -436,6 +438,7 @@ export class UserUseCases {
 
     const assignment = await this.prisma.userRoleAssignment.create({
       data: {
+        tenantId,
         userId,
         roleId: role.id,
         scope: input.scope,
@@ -451,9 +454,9 @@ export class UserUseCases {
     };
   }
 
-  async replaceRole(userId: string, input: AssignRoleInput) {
-    await this.findById(userId);
-    const role = await this.findRoleByInputKey(input.roleKey);
+  async replaceRole(userId: string, tenantId: string, input: AssignRoleInput) {
+    await this.findById(userId, tenantId);
+    const role = await this.findRoleByInputKey(input.roleKey, tenantId);
     if (!role) throw new ValidationAppError('Rol inexistente');
 
     if (input.scope === 'STORE' && !input.storeId) {
@@ -461,10 +464,11 @@ export class UserUseCases {
     }
 
     const assignment = await this.prisma.$transaction(async (tx) => {
-      await tx.userRoleAssignment.deleteMany({ where: { userId } });
+      await tx.userRoleAssignment.deleteMany({ where: { userId, tenantId } });
 
       return tx.userRoleAssignment.create({
         data: {
+          tenantId,
           userId,
           roleId: role.id,
           scope: input.scope,
@@ -481,8 +485,9 @@ export class UserUseCases {
     };
   }
 
-  async listRoles() {
+  async listRoles(actor: AuthenticatedUser) {
     const roles = await this.prisma.role.findMany({
+      where: { tenantId: actor.tenantId },
       include: {
         permissions: { include: { permission: true } }
       },
@@ -861,10 +866,11 @@ export class UserUseCases {
     return roleLabels[canonical] ?? roleLabels[roleKey] ?? fallback ?? roleKey;
   }
 
-  private async findRoleByInputKey(roleKey: string) {
+  private async findRoleByInputKey(roleKey: string, tenantId: string) {
     const keys = roleQueryKeys(roleKey);
     return this.prisma.role.findFirst({
       where: {
+        tenantId,
         key: { in: keys }
       }
     });

@@ -23,7 +23,7 @@ export async function saleRoutes(app: FastifyInstance) {
 
   app.post(
     '/sales',
-    { preHandler: [app.authenticate, canCreateSales] },
+    { preHandler: [app.authenticate, app.requireTenantModule('sales'), canCreateSales] },
     async (request, reply) => {
       const input = createSaleSchema.parse(request.body);
       const canCreateForOthers = request.authUser!.permissions.some((permission) => {

@@ -10,3 +10,11 @@ export const createTenantSchema = z.object({
 
 export const tenantIdSchema = z.object({ id: z.string().uuid() });
 export const tenantStatusSchema = z.object({ status: z.enum(['ACTIVE', 'SUSPENDED', 'ARCHIVED']) });
+export const tenantModulesSchema = z.object({
+  modules: z.array(z.object({
+    key: z.string().trim().min(1).max(80),
+    enabled: z.boolean()
+  })).min(1).max(50).refine((modules) => new Set(modules.map((module) => module.key)).size === modules.length, {
+    message: 'No se permiten modulos duplicados'
+  })
+});

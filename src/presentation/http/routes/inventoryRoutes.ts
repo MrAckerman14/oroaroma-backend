@@ -14,7 +14,7 @@ export async function inventoryRoutes(app: FastifyInstance) {
     async (request) => {
       requireGlobalInventoryReportAccess(request.authUser!);
       const query = paginationQuerySchema.parse(request.query);
-      return { data: await inventory.review(query) };
+      return { data: await inventory.review(request.authUser!, query) };
     }
   );
 
@@ -24,7 +24,7 @@ export async function inventoryRoutes(app: FastifyInstance) {
     async (request) => {
       requireGlobalInventoryReportAccess(request.authUser!);
       const query = paginationQuerySchema.parse(request.query);
-      return { data: await inventory.review(query) };
+      return { data: await inventory.review(request.authUser!, query) };
     }
   );
 
@@ -65,7 +65,7 @@ export async function inventoryRoutes(app: FastifyInstance) {
     { preHandler: [app.authenticate, app.authorize('inventory-reports', 'delete')] },
     async (request, reply) => {
       const params = idParamsSchema.parse(request.params);
-      await inventory.softDelete(params.id);
+      await inventory.softDelete(params.id, request.authUser!);
       return reply.status(204).send();
     }
   );
@@ -76,7 +76,7 @@ export async function inventoryRoutes(app: FastifyInstance) {
     async (request) => {
       const params = idParamsSchema.parse(request.params);
       const input = updateInventoryReportSchema.parse(request.body);
-      return { data: await inventory.update(params.id, input) };
+      return { data: await inventory.update(params.id, request.authUser!, input) };
     }
   );
 }
