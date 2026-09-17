@@ -48,6 +48,14 @@ export class TenantUseCases {
           enabled: module.defaultEnabled
         }))
       });
+      await tx.expenseCategory.createMany({
+        data: ['Ventas', 'Mensajería', 'Mercancía', 'Publicidad', 'Nómina', 'Local', 'Acarreo'].map((categoryName) => ({
+          tenantId: tenant.id,
+          name: categoryName,
+          normalizedName: categoryName.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase(),
+          isSystem: true
+        }))
+      });
       const sourceRoles = await tx.role.findMany({
         where: { tenantId: 'default' },
         include: { permissions: true }

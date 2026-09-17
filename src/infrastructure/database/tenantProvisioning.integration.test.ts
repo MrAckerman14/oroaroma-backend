@@ -29,6 +29,7 @@ describeDb('tenant provisioning', () => {
     if (tenant) {
       await prisma.userRoleAssignment.deleteMany({ where: { tenantId: tenant.id } });
       await prisma.tenantModuleSetting.deleteMany({ where: { tenantId: tenant.id } });
+      await prisma.expenseCategory.deleteMany({ where: { tenantId: tenant.id } });
       await prisma.user.deleteMany({ where: { tenantId: tenant.id } });
       const roles = await prisma.role.findMany({ where: { tenantId: tenant.id }, select: { id: true } });
       await prisma.rolePermission.deleteMany({ where: { roleId: { in: roles.map((role) => role.id) } } });

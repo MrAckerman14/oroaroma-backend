@@ -8,6 +8,7 @@ import { saleRoutes } from './saleRoutes.js';
 import { storeRoutes } from './storeRoutes.js';
 import { userRoutes } from './userRoutes.js';
 import { tenantRoutes } from './tenantRoutes.js';
+import { expenseRoutes } from './expenseRoutes.js';
 
 export async function registerRoutes(app: FastifyInstance) {
   await app.register(healthRoutes);
@@ -19,4 +20,5 @@ export async function registerRoutes(app: FastifyInstance) {
   await app.register(saleRoutes);
   await app.register(reportRoutes);
   await app.register(inventoryRoutes);
+  await app.register(expenseRoutes);
 }

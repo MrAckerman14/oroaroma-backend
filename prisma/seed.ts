@@ -49,7 +49,12 @@ const permissions = [
   ['reports:cash-detail-employees:global', 'reports', 'cash-detail-employees', PermissionScope.GLOBAL],
   ['reports:cash-detail-employees:own', 'reports', 'cash-detail-employees', PermissionScope.OWN],
   ['reports:export:global', 'reports', 'export', PermissionScope.GLOBAL],
-  ['audit-logs:read:global', 'audit-logs', 'read', PermissionScope.GLOBAL]
+  ['audit-logs:read:global', 'audit-logs', 'read', PermissionScope.GLOBAL],
+  ['expense-controls:create:global', 'expense-controls', 'create', PermissionScope.GLOBAL],
+  ['expense-controls:read:global', 'expense-controls', 'read', PermissionScope.GLOBAL],
+  ['expense-controls:update:global', 'expense-controls', 'update', PermissionScope.GLOBAL],
+  ['expense-controls:delete:global', 'expense-controls', 'delete', PermissionScope.GLOBAL],
+  ['expense-controls:export:global', 'expense-controls', 'export', PermissionScope.GLOBAL]
 ] as const;
 
 const roleDefinitions = {
@@ -240,6 +245,14 @@ async function main() {
     })),
     skipDuplicates: true
   });
+
+  for (const name of ['Ventas', 'Mensajería', 'Mercancía', 'Publicidad', 'Nómina', 'Local', 'Acarreo']) {
+    await prisma.expenseCategory.upsert({
+      where: { tenantId_normalizedName: { tenantId: 'default', normalizedName: name.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase() } },
+      update: { name, isSystem: true, deletedAt: null },
+      create: { tenantId: 'default', name, normalizedName: name.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase(), isSystem: true }
+    });
+  }
 }
 
 main()
