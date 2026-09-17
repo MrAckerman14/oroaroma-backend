@@ -116,6 +116,8 @@ deploy_frontend() {
 
   mkdir -p "$release"
   cp -a "$source/dist/spa/." "$release/"
+  find "$release" -type d -exec chmod 755 {} +
+  find "$release" -type f -exec chmod 644 {} +
   previous=$(readlink -f "$ROOT/frontend/current" 2>/dev/null || true)
   ln -sfn "$release" "$ROOT/frontend/current.new"
   mv -Tf "$ROOT/frontend/current.new" "$ROOT/frontend/current"
