@@ -8,19 +8,21 @@ export const createExpenseCategorySchema = z.object({
   name: z.string().trim().min(2).max(80)
 });
 
-export const createExpenseControlSchema = z.object({
+const expenseControlFields = z.object({
   amount: amountSchema,
   type: z.enum(['EXPENSE', 'INCOME']),
   categoryId: z.uuid().optional(),
   categoryName: z.string().trim().min(2).max(80).optional(),
   date: dateSchema,
   description: descriptionSchema
-}).refine((value) => Boolean(value.categoryId) !== Boolean(value.categoryName), {
+});
+
+export const createExpenseControlSchema = expenseControlFields.refine((value) => Boolean(value.categoryId) !== Boolean(value.categoryName), {
   message: 'Use categoryId o categoryName, pero no ambos',
   path: ['categoryId']
 });
 
-export const updateExpenseControlSchema = createExpenseControlSchema.partial().refine(
+export const updateExpenseControlSchema = expenseControlFields.partial().refine(
   (value) => !(value.categoryId && value.categoryName),
   { message: 'Use categoryId o categoryName, pero no ambos', path: ['categoryId'] }
 ).refine((value) => Object.keys(value).length > 0, 'Debe indicar al menos un campo');
