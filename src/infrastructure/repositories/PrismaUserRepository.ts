@@ -66,6 +66,8 @@ export class PrismaUserRepository {
     return {
       id: user.id,
       tenantId: user.tenantId,
+      tenantSlug: user.tenant.slug,
+      tenantName: user.tenant.name,
       email: user.email,
       name: user.name,
       status: user.status,
@@ -77,6 +79,7 @@ export class PrismaUserRepository {
 
   private accessIncludes() {
     return {
+      tenant: true,
       roleAssignments: {
         include: {
           role: {

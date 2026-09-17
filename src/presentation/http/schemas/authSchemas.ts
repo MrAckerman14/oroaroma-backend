@@ -1,6 +1,7 @@
 import { z } from 'zod';
 
 export const loginSchema = z.object({
+  tenant: z.string().trim().min(1).max(80).default('default'),
   email: z.email(),
   password: z.string().min(8)
 });

@@ -44,6 +44,7 @@ export class LoginUseCase {
       include: {
         user: {
           include: {
+            tenant: true,
             roleAssignments: {
               include: {
                 role: {

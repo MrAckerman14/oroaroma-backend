@@ -7,7 +7,7 @@ import {
   registerSchema,
   updateMeSchema
 } from '../schemas/authSchemas.js';
-import { resolveTenantIdFromRequest } from '../../../application/tenancy/tenantResolver.js';
+import { resolveActiveTenant } from '../../../application/tenancy/tenantResolver.js';
 import { canonicalRoleKey } from '../../../shared/utils/roleKeys.js';
 import { roleLabels } from '../../../shared/utils/spanishLabels.js';
 import type { AuthenticatedUser } from '../../../types/rbac.js';
@@ -18,9 +18,9 @@ export async function authRoutes(app: FastifyInstance) {
 
   app.post('/auth/login', async (request, reply) => {
     const input = loginSchema.parse(request.body);
-    const tenantId = resolveTenantIdFromRequest(request);
+    const tenant = await resolveActiveTenant(app.container.prisma, request, input.tenant);
     const session = await app.container.auth.login.execute(input, {
-      tenantId,
+      tenantId: tenant.id,
       ...(request.headers['user-agent'] ? { userAgent: request.headers['user-agent'] } : {}),
       ipAddress: request.ip
     });
@@ -96,6 +96,8 @@ function publicAuthUser(user: AuthenticatedUser) {
   return {
     id: user.id,
     tenantId: user.tenantId,
+    tenantSlug: user.tenantSlug,
+    tenantName: user.tenantName,
     email: user.email,
     name: user.name,
     status: user.status,
