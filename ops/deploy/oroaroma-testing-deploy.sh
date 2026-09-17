@@ -5,7 +5,7 @@ readonly ROOT=/opt/oroaroma-testing
 readonly STATE_DIR="$ROOT/deploy-state"
 readonly SOURCE_DIR="$ROOT/sources"
 readonly BACKEND_REPO=https://github.com/MrAckerman14/oroaroma-backend.git
-readonly FRONTEND_REPO=https://github.com/MrAckerman14/oroaroma-admin-frontend.git
+readonly FRONTEND_REPO=git@github.com:MrAckerman14/oroaroma-admin-frontend.git
 readonly BRANCH=testing
 readonly GITHUB_API=https://api.github.com
 readonly MAX_RELEASES=5
@@ -24,10 +24,20 @@ sync_repo() {
   local destination="$SOURCE_DIR/$name"
 
   if [[ ! -d "$destination/.git" ]]; then
-    git clone --branch "$BRANCH" --single-branch "$url" "$destination"
+    if [[ "$name" == frontend ]]; then
+      GIT_SSH_COMMAND='ssh -i /root/.ssh/oroaroma_frontend_deploy -o IdentitiesOnly=yes' \
+        git clone --branch "$BRANCH" --single-branch "$url" "$destination"
+    else
+      git clone --branch "$BRANCH" --single-branch "$url" "$destination"
+    fi
   fi
 
-  git -C "$destination" fetch origin "$BRANCH" --prune
+  if [[ "$name" == frontend ]]; then
+    GIT_SSH_COMMAND='ssh -i /root/.ssh/oroaroma_frontend_deploy -o IdentitiesOnly=yes' \
+      git -C "$destination" fetch origin "$BRANCH" --prune
+  else
+    git -C "$destination" fetch origin "$BRANCH" --prune
+  fi
 }
 
 remote_sha() {
@@ -130,15 +140,19 @@ process_component() {
   local component=$1
   local repository=$2
   local url=$3
+  local require_remote_ci=$4
   local sha
   local deployed=''
 
-  sync_repo "$component" "$url"
+  if ! sync_repo "$component" "$url"; then
+    log "$component cannot fetch its testing branch yet"
+    return 0
+  fi
   sha=$(remote_sha "$component")
   [[ -f "$STATE_DIR/$component.sha" ]] && deployed=$(<"$STATE_DIR/$component.sha")
   [[ "$sha" == "$deployed" ]] && return 0
 
-  if ! ci_succeeded "$repository" "$sha"; then
+  if [[ "$require_remote_ci" == yes ]] && ! ci_succeeded "$repository" "$sha"; then
     log "$component $sha is waiting for successful CI"
     return 0
   fi
@@ -146,5 +160,5 @@ process_component() {
   "deploy_$component" "$sha"
 }
 
-process_component backend oroaroma-backend "$BACKEND_REPO"
-process_component frontend oroaroma-admin-frontend "$FRONTEND_REPO"
+process_component backend oroaroma-backend "$BACKEND_REPO" yes
+process_component frontend oroaroma-admin-frontend "$FRONTEND_REPO" no
