@@ -72,6 +72,10 @@ deploy_backend() {
 
   log "Deploying backend $sha"
   git -C "$source" reset --hard "$sha"
+  install -m 644 "$source/ops/nginx/oroaroma-testing.conf" /etc/nginx/sites-available/oroaroma-testing
+  ln -sfn /etc/nginx/sites-available/oroaroma-testing /etc/nginx/sites-enabled/oroaroma-testing
+  nginx -t
+  systemctl reload nginx
   docker exec oroaroma-v2-postgres pg_dump \
     --username=oroaroma_testing --dbname=oroaroma_testing --format=custom --file=/tmp/pre-deploy.dump
   docker cp oroaroma-v2-postgres:/tmp/pre-deploy.dump "$backup"
