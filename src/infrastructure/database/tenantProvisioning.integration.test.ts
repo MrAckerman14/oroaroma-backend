@@ -1,5 +1,5 @@
 import { PrismaClient } from '@prisma/client';
-import { afterAll, describe, expect, it } from 'vitest';
+import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { TenantUseCases } from '../../application/tenancy/TenantUseCases.js';
 import { PrismaUserRepository } from '../repositories/PrismaUserRepository.js';
 import { PasswordHasher } from '../security/PasswordHasher.js';
@@ -11,6 +11,19 @@ const slug = `tenant-provisioning-${suffix}`;
 const email = `admin-${suffix}@example.test`;
 
 describeDb('tenant provisioning', () => {
+  beforeAll(async () => {
+    await prisma.role.upsert({
+      where: { tenantId_key: { tenantId: 'default', key: 'admin' } },
+      update: {},
+      create: {
+        tenantId: 'default',
+        key: 'admin',
+        name: 'Administrador',
+        isSystem: true
+      }
+    });
+  });
+
   afterAll(async () => {
     const tenant = await prisma.tenant.findUnique({ where: { slug } });
     if (tenant) {
