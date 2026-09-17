@@ -37,7 +37,7 @@ export async function userRoutes(app: FastifyInstance) {
 
   app.get(
     '/users/plain',
-    { preHandler: [app.authenticate] },
+    { preHandler: [app.authenticate, app.requireTenantModule('users')] },
     async (request) => {
       const query = userOptionQuerySchema.parse(request.query);
       return { data: await users.listOptions(query, request.authUser) };
@@ -49,7 +49,7 @@ export async function userRoutes(app: FastifyInstance) {
     { preHandler: [app.authenticate, app.authorize('users', 'create')] },
     async (request, reply) => {
       const input = createUserSchema.parse(request.body);
-      const user = await users.create(input);
+      const user = await users.create(request.authUser!.tenantId, input);
       return reply.status(201).send({ data: user });
     }
   );
@@ -60,7 +60,7 @@ export async function userRoutes(app: FastifyInstance) {
     async (request) => {
       const params = idParamsSchema.parse(request.params);
       const input = updateUserSchema.parse(request.body);
-      return { data: await users.update(params.id, input) };
+      return { data: await users.update(params.id, request.authUser!, input) };
     }
   );
 
@@ -69,7 +69,7 @@ export async function userRoutes(app: FastifyInstance) {
     { preHandler: [app.authenticate, app.authorize('users', 'delete')] },
     async (request, reply) => {
       const params = idParamsSchema.parse(request.params);
-      await users.softDelete(params.id);
+      await users.softDelete(params.id, request.authUser!);
       return reply.status(204).send();
     }
   );
@@ -80,7 +80,7 @@ export async function userRoutes(app: FastifyInstance) {
     async (request, reply) => {
       const params = idParamsSchema.parse(request.params);
       const input = assignRoleSchema.parse(request.body);
-      const assignment = await users.assignRole(params.id, input);
+      const assignment = await users.assignRole(params.id, request.authUser!.tenantId, input);
       return reply.status(201).send({ data: assignment });
     }
   );
@@ -91,13 +91,13 @@ export async function userRoutes(app: FastifyInstance) {
     async (request) => {
       const params = idParamsSchema.parse(request.params);
       const input = assignRoleSchema.parse(request.body);
-      return { data: await users.replaceRole(params.id, input) };
+      return { data: await users.replaceRole(params.id, request.authUser!.tenantId, input) };
     }
   );
 
   app.get(
     '/roles',
     { preHandler: [app.authenticate, app.authorize('roles', 'assign')] },
-    async () => ({ data: await users.listRoles() })
+    async (request) => ({ data: await users.listRoles(request.authUser!) })
   );
 }

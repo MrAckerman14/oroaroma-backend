@@ -21,7 +21,8 @@ describe('LoginUseCase.refresh', () => {
     const rawUser = {
       id: authenticatedUser.id,
       deletedAt: null,
-      status: 'ACTIVE'
+      status: 'ACTIVE',
+      tenant: { status: 'ACTIVE' }
     };
     const prisma = {
       refreshSession: {

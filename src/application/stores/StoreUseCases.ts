@@ -33,10 +33,11 @@ export class StoreUseCases {
     private readonly storage?: StorageService
   ) {}
 
-  async list(pagination: PaginationInput, options: StoreListOptions = {}) {
+  async list(tenantId: string, pagination: PaginationInput, options: StoreListOptions = {}) {
     const stockFilter = this.stockFilter(options);
     const searchFilter = this.searchFilter(options.search);
     const where: Prisma.StoreWhereInput = {
+      tenantId,
       ...(options.includeDeleted ? {} : { deletedAt: null }),
       ...(stockFilter ? { stock: stockFilter } : {}),
       ...(searchFilter ? searchFilter : {})
@@ -109,7 +110,7 @@ export class StoreUseCases {
     );
   }
 
-  async create(input: {
+  async create(tenantId: string, input: {
     name: string;
     description?: string | undefined;
     purchasePrice: string;
@@ -119,6 +120,7 @@ export class StoreUseCases {
   }) {
     return this.prisma.store.create({
       data: {
+        tenantId,
         name: input.name,
         description: input.description ?? null,
         purchasePrice: input.purchasePrice,
@@ -129,7 +131,7 @@ export class StoreUseCases {
     });
   }
 
-  async createWithImage(input: {
+  async createWithImage(tenantId: string, input: {
     name: string;
     description?: string | undefined;
     purchasePrice: string;
@@ -146,7 +148,7 @@ export class StoreUseCases {
         savedFile = await this.storage.saveProductImage(file);
       }
 
-      return await this.create({
+      return await this.create(tenantId, {
         ...input,
         ...(savedFile ? { imagePath: savedFile.publicPath } : {})
       });
@@ -159,13 +161,13 @@ export class StoreUseCases {
     }
   }
 
-  async findById(id: string, includeSensitivePrices = false) {
-    const store = await this.findActive(id);
+  async findById(id: string, tenantId: string, includeSensitivePrices = false) {
+    const store = await this.findActive(id, tenantId);
     return this.presentStore(store, includeSensitivePrices);
   }
 
-  async update(id: string, input: StoreInput) {
-    await this.findActive(id);
+  async update(id: string, tenantId: string, input: StoreInput) {
+    await this.findActive(id, tenantId);
 
     return this.prisma.store.update({
       where: { id },
@@ -180,16 +182,16 @@ export class StoreUseCases {
     });
   }
 
-  async softDelete(id: string) {
-    await this.findActive(id);
+  async softDelete(id: string, tenantId: string) {
+    await this.findActive(id, tenantId);
     await this.prisma.store.update({
       where: { id },
       data: { deletedAt: new Date() }
     });
   }
 
-  async restore(id: string) {
-    const store = await this.prisma.store.findUnique({ where: { id } });
+  async restore(id: string, tenantId: string) {
+    const store = await this.prisma.store.findFirst({ where: { id, tenantId } });
     if (!store) throw new NotFoundError('Producto no encontrado');
 
     return this.prisma.store.update({
@@ -198,12 +200,12 @@ export class StoreUseCases {
     });
   }
 
-  async replaceImage(id: string, file: UploadFileInput) {
+  async replaceImage(id: string, tenantId: string, file: UploadFileInput) {
     if (!this.storage) {
       throw new ValidationAppError('El almacenamiento de imagenes no esta configurado');
     }
 
-    const store = await this.findActive(id);
+    const store = await this.findActive(id, tenantId);
     const savedFile = await this.storage.saveProductImage(file);
 
     const updatedStore = await this.prisma.store.update({
@@ -221,8 +223,8 @@ export class StoreUseCases {
     };
   }
 
-  async imageDownload(id: string) {
-    const store = await this.findActive(id);
+  async imageDownload(id: string, tenantId: string) {
+    const store = await this.findActive(id, tenantId);
     if (!store.imagePath) {
       throw new NotFoundError('Este producto no tiene imagen');
     }
@@ -234,11 +236,12 @@ export class StoreUseCases {
     };
   }
 
-  async listImages(options: StoreListOptions = {}) {
+  async listImages(tenantId: string, options: StoreListOptions = {}) {
     const stockFilter = this.stockFilter(options);
     const searchFilter = this.searchFilter(options.search);
     const stores = await this.prisma.store.findMany({
       where: {
+        tenantId,
         deletedAt: null,
         imagePath: { not: null },
         ...(stockFilter ? { stock: stockFilter } : {}),
@@ -270,8 +273,8 @@ export class StoreUseCases {
       });
   }
 
-  private async findActive(id: string) {
-    const store = await this.prisma.store.findFirst({ where: { id, deletedAt: null } });
+  private async findActive(id: string, tenantId: string) {
+    const store = await this.prisma.store.findFirst({ where: { id, tenantId, deletedAt: null } });
     if (!store) throw new NotFoundError('Producto no encontrado');
     return store;
   }

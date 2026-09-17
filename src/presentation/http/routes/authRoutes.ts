@@ -11,7 +11,6 @@ import { canonicalRoleKey } from '../../../shared/utils/roleKeys.js';
 import { roleLabels } from '../../../shared/utils/spanishLabels.js';
 import type { AuthenticatedUser } from '../../../types/rbac.js';
 import type { AuthSession } from '../../../types/auth.js';
-import { platformAdminEmails } from '../../../config/env.js';
 
 export async function authRoutes(app: FastifyInstance) {
   const users = new UserUseCases(app.container.prisma, app.container.passwordHasher);
@@ -32,7 +31,7 @@ export async function authRoutes(app: FastifyInstance) {
   app.post('/auth/register', async (request, reply) => {
     const input = registerSchema.parse(request.body);
 
-    const user = await users.create({
+    const user = await users.create('default', {
       name: input.name,
       email: input.email,
       password: input.password,
@@ -66,11 +65,11 @@ export async function authRoutes(app: FastifyInstance) {
 
   app.put('/auth/me', { preHandler: [app.authenticate] }, async (request) => {
     const input = updateMeSchema.parse(request.body);
-    return { data: await users.update(request.authUser!.id, input) };
+    return { data: await users.update(request.authUser!.id, request.authUser!, input) };
   });
 
   app.delete('/auth/me', { preHandler: [app.authenticate] }, async (request, reply) => {
-    await users.softDelete(request.authUser!.id);
+    await users.softDelete(request.authUser!.id, request.authUser!);
     return reply.status(204).send();
   });
 
@@ -99,7 +98,9 @@ function publicAuthUser(user: AuthenticatedUser) {
     tenantId: user.tenantId,
     tenantSlug: user.tenantSlug,
     tenantName: user.tenantName,
-    isPlatformAdmin: platformAdminEmails.has(user.email.toLowerCase()),
+    isPlatformAdmin: (user.platformPermissions?.length ?? 0) > 0,
+    platformPermissions: user.platformPermissions ?? [],
+    enabledModules: user.enabledModules ?? [],
     email: user.email,
     name: user.name,
     status: user.status,

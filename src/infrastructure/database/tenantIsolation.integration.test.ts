@@ -26,6 +26,7 @@ describeDb('tenant SQL isolation', () => {
       await prisma.store.deleteMany({ where: { tenantId: { in: [tenantA, tenantB] } } });
       await prisma.refreshSession.deleteMany({ where: { tenantId: { in: [tenantA, tenantB] } } });
       await prisma.user.deleteMany({ where: { tenantId: { in: [tenantA, tenantB] } } });
+      await prisma.tenantModuleSetting.deleteMany({ where: { tenantId: { in: [tenantA, tenantB] } } });
       await prisma.tenant.deleteMany({ where: { id: { in: [tenantA, tenantB] } } });
     } catch (error) {
       if ((error as { name?: string }).name !== 'PrismaClientInitializationError') {
@@ -50,7 +51,7 @@ describeDb('tenant SQL isolation', () => {
       SELECT tablename, policyname
       FROM pg_policies
       WHERE schemaname = 'public'
-        AND tablename IN ('Tenant', 'User', 'Store', 'Sale', 'SaleDetail')
+        AND tablename IN ('Tenant', 'TenantModuleSetting', 'User', 'Store', 'Sale', 'SaleDetail')
       ORDER BY tablename
     `;
 
@@ -59,6 +60,7 @@ describeDb('tenant SQL isolation', () => {
       'SaleDetail:SaleDetail_current_tenant',
       'Store:Store_current_tenant',
       'Tenant:Tenant_current_tenant',
+      'TenantModuleSetting:TenantModuleSetting_current_tenant',
       'User:User_current_tenant'
     ]);
   });

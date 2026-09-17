@@ -119,6 +119,7 @@ export class ReportUseCases {
 
         return tx.cashClosure.create({
           data: {
+            tenantId: actor.tenantId,
             name,
             note: input.note?.trim() || null,
             createdById: actor.id,
@@ -137,7 +138,7 @@ export class ReportUseCases {
             generalSale: totals.generalSale,
             status: 'PENDING',
             details: {
-              create: sales.map((sale) => ({ saleId: sale.id }))
+              create: sales.map((sale) => ({ tenantId: actor.tenantId, saleId: sale.id }))
             }
           },
           include: {
@@ -487,6 +488,7 @@ export class ReportUseCases {
     const range = dateRangeOrCurrentDay(input);
     const createdAt = buildCreatedAtFilter(range);
     const where = {
+      tenantId: actor.tenantId,
       deletedAt: null,
       ...(createdAt ? { createdAt } : {}),
       ...(this.canReadGlobalCashClosures(actor) ? {} : { createdById: actor.id })
@@ -513,6 +515,7 @@ export class ReportUseCases {
     const closure = await this.prisma.cashClosure.findFirst({
       where: {
         id,
+        tenantId: actor.tenantId,
         deletedAt: null,
         ...(this.canReadGlobalCashClosures(actor) ? {} : { createdById: actor.id })
       },
@@ -525,7 +528,7 @@ export class ReportUseCases {
 
     const [details, summaryDetails, totalDetails] = await Promise.all([
       this.prisma.cashClosureDetail.findMany({
-        where: { closureId: id },
+        where: { closureId: id, tenantId: actor.tenantId },
         include: {
           sale: {
             include: {
@@ -540,7 +543,7 @@ export class ReportUseCases {
         take: input.pageSize
       }),
       this.prisma.cashClosureDetail.findMany({
-        where: { closureId: id },
+        where: { closureId: id, tenantId: actor.tenantId },
         include: {
           sale: {
             include: {
@@ -552,7 +555,7 @@ export class ReportUseCases {
           }
         }
       }),
-      this.prisma.cashClosureDetail.count({ where: { closureId: id } })
+      this.prisma.cashClosureDetail.count({ where: { closureId: id, tenantId: actor.tenantId } })
     ]);
     const closureSummary = await this.cashSummary(actor, summaryDetails.map((detail) => detail.sale));
 
@@ -575,8 +578,8 @@ export class ReportUseCases {
     });
   }
 
-  async updateClosureStatus(id: string, status: CashClosureStatus) {
-    const closure = await this.prisma.cashClosure.findFirst({ where: { id, deletedAt: null } });
+  async updateClosureStatus(actor: AuthenticatedUser, id: string, status: CashClosureStatus) {
+    const closure = await this.prisma.cashClosure.findFirst({ where: { id, tenantId: actor.tenantId, deletedAt: null } });
     if (!closure) throw new NotFoundError('Cierre no encontrado');
 
     return this.prisma.cashClosure.update({
@@ -586,8 +589,8 @@ export class ReportUseCases {
     }).then((closure) => this.presentCashClosure(closure));
   }
 
-  async updateClosure(id: string, input: { name?: string | undefined; note?: string | null | undefined }) {
-    const closure = await this.prisma.cashClosure.findFirst({ where: { id, deletedAt: null } });
+  async updateClosure(actor: AuthenticatedUser, id: string, input: { name?: string | undefined; note?: string | null | undefined }) {
+    const closure = await this.prisma.cashClosure.findFirst({ where: { id, tenantId: actor.tenantId, deletedAt: null } });
     if (!closure) throw new NotFoundError('Cierre no encontrado');
 
     return this.prisma.cashClosure.update({
@@ -600,8 +603,8 @@ export class ReportUseCases {
     }).then((closure) => this.presentCashClosure(closure));
   }
 
-  async softDeleteClosure(id: string) {
-    const closure = await this.prisma.cashClosure.findFirst({ where: { id, deletedAt: null } });
+  async softDeleteClosure(actor: AuthenticatedUser, id: string) {
+    const closure = await this.prisma.cashClosure.findFirst({ where: { id, tenantId: actor.tenantId, deletedAt: null } });
     if (!closure) throw new NotFoundError('Cierre no encontrado');
 
     await this.prisma.cashClosure.update({

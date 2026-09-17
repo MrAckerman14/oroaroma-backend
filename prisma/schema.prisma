@@ -64,6 +64,7 @@ model Tenant {
   inventoryReports       InventoryReport[]
   inventoryReportDetails InventoryReportDetail[]
   auditLogs              AuditLog[]
+  moduleSettings         TenantModuleSetting[]
 
   @@index([status])
 }
@@ -90,6 +91,7 @@ model User {
   cashClosures     CashClosure[]        @relation("CashClosureCreator")
   inventoryReports InventoryReport[]    @relation("InventoryReportCreator")
   auditLogs        AuditLog[]
+  platformRoles    PlatformRoleAssignment[]
 
   @@index([tenantId])
   @@index([tenantId, email])
@@ -375,4 +377,80 @@ model AuditLog {
   @@index([actorId])
   @@index([resource, resourceId])
   @@index([createdAt])
+}
+
+model PlatformPermission {
+  id          String   @id @default(uuid())
+  key         String   @unique
+  resource    String
+  action      String
+  description String?
+  createdAt   DateTime @default(now())
+
+  roles PlatformRolePermission[]
+
+  @@unique([resource, action])
+}
+
+model PlatformRole {
+  id          String   @id @default(uuid())
+  key         String   @unique
+  name        String
+  description String?
+  isSystem    Boolean  @default(false)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  permissions PlatformRolePermission[]
+  assignments PlatformRoleAssignment[]
+}
+
+model PlatformRolePermission {
+  roleId       String
+  permissionId String
+  createdAt    DateTime @default(now())
+
+  role       PlatformRole       @relation(fields: [roleId], references: [id], onDelete: Cascade)
+  permission PlatformPermission @relation(fields: [permissionId], references: [id], onDelete: Cascade)
+
+  @@id([roleId, permissionId])
+}
+
+model PlatformRoleAssignment {
+  id        String    @id @default(uuid())
+  userId    String
+  roleId    String
+  expiresAt DateTime?
+  createdAt DateTime  @default(now())
+
+  user User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+  role PlatformRole @relation(fields: [roleId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, roleId])
+  @@index([userId])
+}
+
+model ModuleCatalog {
+  key            String   @id
+  name           String
+  description    String?
+  defaultEnabled Boolean  @default(true)
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  tenantSettings TenantModuleSetting[]
+}
+
+model TenantModuleSetting {
+  tenantId String
+  moduleKey String
+  enabled  Boolean @default(true)
+  config   Json?
+  updatedAt DateTime @updatedAt
+
+  tenant Tenant        @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  module ModuleCatalog @relation(fields: [moduleKey], references: [key], onDelete: Restrict)
+
+  @@id([tenantId, moduleKey])
+  @@index([tenantId, enabled])
 }

@@ -28,6 +28,7 @@ describeDb('tenant provisioning', () => {
     const tenant = await prisma.tenant.findUnique({ where: { slug } });
     if (tenant) {
       await prisma.userRoleAssignment.deleteMany({ where: { tenantId: tenant.id } });
+      await prisma.tenantModuleSetting.deleteMany({ where: { tenantId: tenant.id } });
       await prisma.user.deleteMany({ where: { tenantId: tenant.id } });
       const roles = await prisma.role.findMany({ where: { tenantId: tenant.id }, select: { id: true } });
       await prisma.rolePermission.deleteMany({ where: { roleId: { in: roles.map((role) => role.id) } } });
@@ -55,5 +56,16 @@ describeDb('tenant provisioning', () => {
     expect(account?.tenantId).toBe(created.id);
     expect(account?.tenant.status).toBe('ACTIVE');
     expect(await prisma.userRoleAssignment.count({ where: { tenantId: created.id } })).toBe(1);
+    const catalogCount = await prisma.moduleCatalog.count();
+    expect(await prisma.tenantModuleSetting.count({ where: { tenantId: created.id } })).toBe(catalogCount);
+  });
+
+  it('expone los modulos habilitados y nunca concede permisos de plataforma al admin del tenant', async () => {
+    const repository = new PrismaUserRepository(prisma);
+    const rawAccount = await repository.findRawUserByEmailAcrossTenants(email);
+    const account = rawAccount ? repository.toAuthenticatedUser(rawAccount) : null;
+
+    expect(account?.enabledModules?.length).toBeGreaterThan(0);
+    expect(account?.platformPermissions).toEqual([]);
   });
 });

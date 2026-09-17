@@ -28,8 +28,8 @@ export interface InventoryDetailInput {
 export class InventoryUseCases {
   constructor(private readonly prisma: PrismaClient) {}
 
-  async review(input: InventoryPreviewInput) {
-    const snapshot = await this.inventorySnapshot();
+  async review(actor: AuthenticatedUser, input: InventoryPreviewInput) {
+    const snapshot = await this.inventorySnapshot(actor.tenantId);
     const start = (input.page - 1) * input.pageSize;
     const items = snapshot.products.slice(start, start + input.pageSize);
 
@@ -41,9 +41,9 @@ export class InventoryUseCases {
     };
   }
 
-  private async inventorySnapshot() {
+  private async inventorySnapshot(tenantId: string) {
     const products = await this.prisma.store.findMany({
-      where: { deletedAt: null },
+      where: { tenantId, deletedAt: null },
       orderBy: { name: 'asc' }
     });
 
@@ -72,10 +72,11 @@ export class InventoryUseCases {
     const from = range.from ?? fallbackRange.from;
     const to = range.to ?? fallbackRange.to;
 
-    const snapshot = await this.inventorySnapshot();
+    const snapshot = await this.inventorySnapshot(actor.tenantId);
 
     const report = await this.prisma.inventoryReport.create({
       data: {
+        tenantId: actor.tenantId,
         fromDate: from,
         toDate: to,
         name: input.name?.trim() || `Reporte de inventario ${this.formatDateOnly(new Date())}`,
@@ -85,6 +86,7 @@ export class InventoryUseCases {
         totalInventoryValue: snapshot.totals.totalInventoryValue,
         details: {
           create: snapshot.products.map((product) => ({
+            tenantId: actor.tenantId,
             productId: product.id,
             productName: product.name,
             productDescription: product.description,
@@ -112,6 +114,7 @@ export class InventoryUseCases {
     }
 
     const where = {
+      tenantId: actor.tenantId,
       deletedAt: null,
       ...(createdAt ? { createdAt } : {})
     };
@@ -140,6 +143,7 @@ export class InventoryUseCases {
     }
     const where = {
       id,
+      tenantId: actor.tenantId,
       deletedAt: null
     };
     const [report, details, totalDetails] = await Promise.all([
@@ -150,13 +154,13 @@ export class InventoryUseCases {
         }
       }),
       this.prisma.inventoryReportDetail.findMany({
-        where: { inventoryReportId: id },
+        where: { inventoryReportId: id, tenantId: actor.tenantId },
         orderBy: { productName: 'asc' },
         skip: (input.page - 1) * input.pageSize,
         take: input.pageSize
       }),
       this.prisma.inventoryReportDetail.count({
-        where: { inventoryReportId: id }
+        where: { inventoryReportId: id, tenantId: actor.tenantId }
       })
     ]);
 
@@ -172,9 +176,9 @@ export class InventoryUseCases {
     });
   }
 
-  async softDelete(id: string) {
+  async softDelete(id: string, actor: AuthenticatedUser) {
     const report = await this.prisma.inventoryReport.findFirst({
-      where: { id, deletedAt: null }
+      where: { id, tenantId: actor.tenantId, deletedAt: null }
     });
     if (!report) throw new NotFoundError('Reporte de inventario no encontrado');
 
@@ -184,9 +188,9 @@ export class InventoryUseCases {
     });
   }
 
-  async update(id: string, input: { name?: string | undefined; note?: string | null | undefined }) {
+  async update(id: string, actor: AuthenticatedUser, input: { name?: string | undefined; note?: string | null | undefined }) {
     const report = await this.prisma.inventoryReport.findFirst({
-      where: { id, deletedAt: null }
+      where: { id, tenantId: actor.tenantId, deletedAt: null }
     });
     if (!report) throw new NotFoundError('Reporte de inventario no encontrado');
 
@@ -264,6 +268,7 @@ export class InventoryUseCases {
     const report = await this.prisma.inventoryReport.findFirst({
       where: {
         id,
+        tenantId: actor.tenantId,
         deletedAt: null
       },
       include: {

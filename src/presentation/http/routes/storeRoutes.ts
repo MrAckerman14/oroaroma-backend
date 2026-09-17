@@ -13,11 +13,11 @@ export async function storeRoutes(app: FastifyInstance) {
 
   app.get(
     '/stores',
-    { preHandler: [app.authenticate, canReadStores] },
+    { preHandler: [app.authenticate, app.requireTenantModule('inventory'), canReadStores] },
     async (request) => {
       const query = storeListQuerySchema.parse(request.query);
       return {
-        data: await stores.list(query, {
+        data: await stores.list(request.authUser!.tenantId, query, {
           includeSensitivePrices: canReadSensitiveStorePrices(request.authUser!),
           from: query.from,
           to: query.to,
@@ -34,17 +34,18 @@ export async function storeRoutes(app: FastifyInstance) {
     { preHandler: [app.authenticate, app.authorize('stores', 'create')] },
     async (request, reply) => {
       const { input, image } = await parseCreateStoreRequest(request);
-      const store = image ? await stores.createWithImage(input, image) : await stores.create(input);
+      const tenantId = request.authUser!.tenantId;
+      const store = image ? await stores.createWithImage(tenantId, input, image) : await stores.create(tenantId, input);
       return reply.status(201).send({ data: store });
     }
   );
 
   app.get(
     '/stores/images/download',
-    { preHandler: [app.authenticate, canReadStores] },
+    { preHandler: [app.authenticate, app.requireTenantModule('inventory'), canReadStores] },
     async (request, reply) => {
       const query = storeListQuerySchema.parse(request.query);
-      const images = await stores.listImages({
+      const images = await stores.listImages(request.authUser!.tenantId, {
         from: query.from,
         to: query.to,
         minStock: query.minStock,
@@ -77,10 +78,10 @@ export async function storeRoutes(app: FastifyInstance) {
 
   app.get(
     '/stores/:id/image/download',
-    { preHandler: [app.authenticate, canReadStores] },
+    { preHandler: [app.authenticate, app.requireTenantModule('inventory'), canReadStores] },
     async (request, reply) => {
       const params = idParamsSchema.parse(request.params);
-      const image = await stores.imageDownload(params.id);
+      const image = await stores.imageDownload(params.id, request.authUser!.tenantId);
       const file = await app.container.storage.readByPublicPath(image.imagePath);
       const filename = downloadFilename(image.name, image.imagePath);
 
@@ -94,11 +95,11 @@ export async function storeRoutes(app: FastifyInstance) {
 
   app.get(
     '/stores/:id',
-    { preHandler: [app.authenticate, canReadStores] },
+    { preHandler: [app.authenticate, app.requireTenantModule('inventory'), canReadStores] },
     async (request) => {
       const params = idParamsSchema.parse(request.params);
       return {
-        data: await stores.findById(params.id, canReadSensitiveStorePrices(request.authUser!))
+        data: await stores.findById(params.id, request.authUser!.tenantId, canReadSensitiveStorePrices(request.authUser!))
       };
     }
   );
@@ -109,7 +110,7 @@ export async function storeRoutes(app: FastifyInstance) {
     async (request) => {
       const params = idParamsSchema.parse(request.params);
       const input = updateStoreSchema.parse(request.body);
-      return { data: await stores.update(params.id, input) };
+      return { data: await stores.update(params.id, request.authUser!.tenantId, input) };
     }
   );
 
@@ -118,7 +119,7 @@ export async function storeRoutes(app: FastifyInstance) {
     { preHandler: [app.authenticate, app.authorize('stores', 'delete')] },
     async (request, reply) => {
       const params = idParamsSchema.parse(request.params);
-      await stores.softDelete(params.id);
+      await stores.softDelete(params.id, request.authUser!.tenantId);
       return reply.status(204).send();
     }
   );
@@ -128,7 +129,7 @@ export async function storeRoutes(app: FastifyInstance) {
     { preHandler: [app.authenticate, app.authorize('stores', 'restore')] },
     async (request) => {
       const params = idParamsSchema.parse(request.params);
-      return { data: await stores.restore(params.id) };
+      return { data: await stores.restore(params.id, request.authUser!.tenantId) };
     }
   );
 
@@ -148,7 +149,7 @@ export async function storeRoutes(app: FastifyInstance) {
       }
 
       const buffer = await image.toBuffer();
-      const result = await stores.replaceImage(params.id, {
+      const result = await stores.replaceImage(params.id, request.authUser!.tenantId, {
         buffer,
         originalName: image.filename,
         mimeType: image.mimetype,

@@ -58,6 +58,8 @@ export interface AuthenticatedUser {
   statusLabel: string | null;
   roles: UserRoleContext[];
   permissions: PermissionDescriptor[];
+  platformPermissions?: string[];
+  enabledModules?: string[];
 }
 
 export interface UserRoleContext {

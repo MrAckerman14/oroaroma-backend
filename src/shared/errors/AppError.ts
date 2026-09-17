@@ -41,3 +41,12 @@ export class ConflictError extends AppError {
     super(message, { statusCode: 409, code: 'CONFLICT', details });
   }
 }
+
+export class ModuleDisabledError extends AppError {
+  constructor(moduleKey: string) {
+    super(`El modulo ${moduleKey} no esta habilitado para esta empresa`, {
+      statusCode: 403,
+      code: 'TENANT_MODULE_DISABLED'
+    });
+  }
+}
