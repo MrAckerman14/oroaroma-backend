@@ -82,4 +82,15 @@ describeDb('expense control tenant isolation and reports', () => {
     expect(result.items).toEqual([]);
     expect(await prisma.auditLog.count({ where: { tenantId: tenantA, resourceId: movement.id } })).toBeGreaterThanOrEqual(2);
   });
+
+  it('elimina solo categorías personalizadas sin movimientos del tenant activo', async () => {
+    const useCases = new ExpenseUseCases(prisma);
+    const system = await prisma.expenseCategory.create({ data: { tenantId: tenantA, name: `Sistema ${suffix}`, normalizedName: `sistema-${suffix}`, isSystem: true } });
+    const custom = await useCases.createCategory(actorA, `Temporal ${suffix}`);
+    await useCases.removeCategory(actorA, custom.id);
+    expect(await prisma.expenseCategory.findUnique({ where: { id: custom.id } })).toMatchObject({ deletedAt: expect.any(Date) });
+    await expect(useCases.removeCategory(actorA, system.id)).rejects.toThrow('predeterminadas');
+    await expect(useCases.removeCategory(actorA, categoryA.id)).rejects.toThrow('tiene movimientos');
+    await expect(useCases.removeCategory(actorA, categoryB.id)).rejects.toThrow('no encontrada');
+  });
 });
