@@ -54,4 +54,14 @@ describeDb('expense control and reports', () => {
     expect(await prisma.expenseControl.findUnique({ where: { id: movement.id } })).toMatchObject({ deletedAt: expect.any(Date) });
     expect(await prisma.auditLog.count({ where: { actorId: actor.id, resourceId: movement.id } })).toBeGreaterThanOrEqual(2);
   });
+
+  it('deletes only unused custom categories', async () => {
+    const useCases = new ExpenseUseCases(prisma);
+    const system = await prisma.expenseCategory.findFirstOrThrow({ where: { isSystem: true } });
+    const custom = await useCases.createCategory(actor, `Temporal ${suffix}`);
+    await useCases.removeCategory(actor, custom.id);
+    expect(await prisma.expenseCategory.findUnique({ where: { id: custom.id } })).toMatchObject({ deletedAt: expect.any(Date) });
+    await expect(useCases.removeCategory(actor, system.id)).rejects.toThrow('predeterminadas');
+    await expect(useCases.removeCategory(actor, category.id)).rejects.toThrow('tiene movimientos');
+  });
 });

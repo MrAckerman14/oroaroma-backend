@@ -21,6 +21,12 @@ export async function expenseRoutes(app: FastifyInstance) {
     return reply.status(201).send({ data: await expenses.createCategory(request.authUser!, input.name) });
   });
 
+  app.delete('/expense-categories/:id', { preHandler: [app.authenticate, app.authorize('expense-controls', 'delete')] }, async (request, reply) => {
+    const { id } = idParamsSchema.parse(request.params);
+    await expenses.removeCategory(request.authUser!, id);
+    return reply.status(204).send();
+  });
+
   app.get('/expense-controls', { preHandler: [app.authenticate, app.authorize('expense-controls', 'read')] }, async (request) => ({
     data: await expenses.list(request.authUser!, dateRangePaginationQuerySchema.parse(request.query))
   }));

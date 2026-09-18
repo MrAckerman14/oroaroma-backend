@@ -46,6 +46,16 @@ export class ExpenseUseCases {
     });
   }
 
+  async removeCategory(actor: AuthenticatedUser, id: string) {
+    void actor;
+    const category = await this.prisma.expenseCategory.findFirst({ where: { id, deletedAt: null } });
+    if (!category) throw new NotFoundError('Categoría no encontrada');
+    if (category.isSystem) throw new ValidationAppError('Las categorías predeterminadas no se pueden eliminar');
+    const movements = await this.prisma.expenseControl.count({ where: { categoryId: id, deletedAt: null } });
+    if (movements > 0) throw new ConflictError('No se puede eliminar una categoría que tiene movimientos');
+    await this.prisma.expenseCategory.update({ where: { id }, data: { deletedAt: new Date() } });
+  }
+
   async list(actor: AuthenticatedUser, input: Range & Pagination) {
     const date = this.dateFilter(input);
     void actor;
