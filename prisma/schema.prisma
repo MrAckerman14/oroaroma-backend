@@ -38,6 +38,11 @@ enum CashClosureStatus {
   VOIDED
 }
 
+enum ExpenseType {
+  EXPENSE
+  INCOME
+}
+
 model User {
   id           String     @id @default(uuid())
   name         String
@@ -58,6 +63,8 @@ model User {
   cashClosures    CashClosure[] @relation("CashClosureCreator")
   inventoryReports InventoryReport[] @relation("InventoryReportCreator")
   auditLogs       AuditLog[]
+  expenseControls ExpenseControl[] @relation("ExpenseControlCreator")
+  expenseReports  ExpenseReport[]  @relation("ExpenseReportCreator")
 
   @@index([status])
   @@index([deletedAt])
@@ -302,4 +309,75 @@ model AuditLog {
   @@index([actorId])
   @@index([resource, resourceId])
   @@index([createdAt])
+}
+
+model ExpenseCategory {
+  id             String   @id @default(uuid())
+  name           String
+  normalizedName String   @unique
+  isSystem       Boolean  @default(false)
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+  deletedAt      DateTime?
+
+  movements ExpenseControl[]
+
+  @@index([deletedAt])
+}
+
+model ExpenseControl {
+  id          String      @id @default(uuid())
+  amount      Decimal     @db.Decimal(14, 2)
+  type        ExpenseType
+  categoryId  String
+  date        DateTime
+  description String?
+  createdById String
+  createdAt   DateTime    @default(now())
+  updatedAt   DateTime    @updatedAt
+  deletedAt   DateTime?
+
+  category ExpenseCategory @relation(fields: [categoryId], references: [id], onDelete: Restrict)
+  creator  User            @relation("ExpenseControlCreator", fields: [createdById], references: [id], onDelete: Restrict)
+
+  @@index([date])
+  @@index([type, date])
+  @@index([categoryId])
+  @@index([createdById])
+  @@index([deletedAt])
+}
+
+model ExpenseReport {
+  id           String   @id @default(uuid())
+  name         String
+  note         String?
+  fromDate     DateTime
+  toDate       DateTime
+  totalIncome  Decimal  @db.Decimal(14, 2)
+  totalExpense Decimal  @db.Decimal(14, 2)
+  balance      Decimal  @db.Decimal(14, 2)
+  createdById  String
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+  deletedAt    DateTime?
+
+  creator User                  @relation("ExpenseReportCreator", fields: [createdById], references: [id], onDelete: Restrict)
+  details ExpenseReportDetail[]
+
+  @@index([createdAt])
+  @@index([createdById])
+  @@index([deletedAt])
+}
+
+model ExpenseReportDetail {
+  id              String  @id @default(uuid())
+  expenseReportId String
+  categoryName    String
+  income          Decimal @db.Decimal(14, 2)
+  expense         Decimal @db.Decimal(14, 2)
+  balance         Decimal @db.Decimal(14, 2)
+
+  report ExpenseReport @relation(fields: [expenseReportId], references: [id], onDelete: Cascade)
+
+  @@index([expenseReportId])
 }

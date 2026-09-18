@@ -49,7 +49,12 @@ const permissions = [
   ['reports:cash-detail-employees:global', 'reports', 'cash-detail-employees', PermissionScope.GLOBAL],
   ['reports:cash-detail-employees:own', 'reports', 'cash-detail-employees', PermissionScope.OWN],
   ['reports:export:global', 'reports', 'export', PermissionScope.GLOBAL],
-  ['audit-logs:read:global', 'audit-logs', 'read', PermissionScope.GLOBAL]
+  ['audit-logs:read:global', 'audit-logs', 'read', PermissionScope.GLOBAL],
+  ['expense-controls:create:global', 'expense-controls', 'create', PermissionScope.GLOBAL],
+  ['expense-controls:read:global', 'expense-controls', 'read', PermissionScope.GLOBAL],
+  ['expense-controls:update:global', 'expense-controls', 'update', PermissionScope.GLOBAL],
+  ['expense-controls:delete:global', 'expense-controls', 'delete', PermissionScope.GLOBAL],
+  ['expense-controls:export:global', 'expense-controls', 'export', PermissionScope.GLOBAL]
 ] as const;
 
 const roleDefinitions = {
