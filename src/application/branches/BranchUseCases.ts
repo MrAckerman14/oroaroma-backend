@@ -6,8 +6,12 @@ export class BranchUseCases {
   constructor(private readonly prisma: PrismaClient) {}
 
   list(actor: AuthenticatedUser) {
+    const canReadAll = actor.permissions.some((permission) => permission.key === 'branches:read:global');
     return this.prisma.branch.findMany({
-      where: { tenantId: actor.tenantId },
+      where: {
+        tenantId: actor.tenantId,
+        ...(canReadAll ? {} : { memberships: { some: { userId: actor.id } } })
+      },
       orderBy: [{ isPrimary: 'desc' }, { name: 'asc' }],
       include: {
         memberships: {
@@ -24,7 +28,15 @@ export class BranchUseCases {
     const code = input.code.trim().toUpperCase();
     const duplicate = await this.prisma.branch.findFirst({ where: { tenantId: actor.tenantId, OR: [{ normalizedName }, { code }] } });
     if (duplicate) throw new ConflictError('Ya existe una sucursal con ese nombre o código');
-    return this.prisma.branch.create({ data: { tenantId: actor.tenantId, name: input.name.trim(), normalizedName, code, address: input.address?.trim() || null, phone: input.phone?.trim() || null } });
+    return this.prisma.$transaction(async (tx) => {
+      const branch = await tx.branch.create({ data: { tenantId: actor.tenantId, name: input.name.trim(), normalizedName, code, address: input.address?.trim() || null, phone: input.phone?.trim() || null } });
+      await tx.branchMembership.upsert({
+        where: { branchId_userId: { branchId: branch.id, userId: actor.id } },
+        update: {},
+        create: { tenantId: actor.tenantId, branchId: branch.id, userId: actor.id }
+      });
+      return branch;
+    });
   }
 
   async update(actor: AuthenticatedUser, id: string, input: { name?: string | undefined; code?: string | undefined; address?: string | null | undefined; phone?: string | null | undefined }) {

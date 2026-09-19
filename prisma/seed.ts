@@ -57,6 +57,7 @@ const permissions = [
   ['expense-controls:export:global', 'expense-controls', 'export', PermissionScope.GLOBAL],
   ['branches:create:global', 'branches', 'create', PermissionScope.GLOBAL],
   ['branches:read:global', 'branches', 'read', PermissionScope.GLOBAL],
+  ['branches:read:assigned', 'branches', 'read', PermissionScope.ASSIGNED],
   ['branches:update:global', 'branches', 'update', PermissionScope.GLOBAL],
   ['branches:assign:global', 'branches', 'assign', PermissionScope.GLOBAL]
 ] as const;
@@ -87,6 +88,7 @@ const roleDefinitions = {
     description: 'Crea y gestiona sus ventas como vendedor; consulta la lista de vendedores',
     permissions: [
       'users:read:global',
+      'branches:read:assigned',
       'stores:read:global',
       'sales:create:own',
       'sales:read:own',
