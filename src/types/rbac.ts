@@ -8,7 +8,8 @@ export const rbacResources = [
   'inventory-reports',
   'reports',
   'audit-logs',
-  'expense-controls'
+  'expense-controls',
+  'branches'
 ] as const;
 
 export const rbacActions = [
@@ -61,6 +62,7 @@ export interface AuthenticatedUser {
   permissions: PermissionDescriptor[];
   platformPermissions?: string[];
   enabledModules?: string[];
+  branches?: Array<{ id: string; name: string; code: string; isPrimary: boolean }>;
 }
 
 export interface UserRoleContext {

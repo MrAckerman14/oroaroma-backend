@@ -92,7 +92,10 @@ export class PrismaUserRepository {
       platformPermissions: [...platformPermissionKeys],
       enabledModules: user.tenant.moduleSettings
         .filter((setting) => setting.enabled)
-        .map((setting) => setting.moduleKey)
+        .map((setting) => setting.moduleKey),
+      branches: user.branchMemberships
+        .filter((membership) => membership.branch.status === 'ACTIVE')
+        .map((membership) => ({ id: membership.branch.id, name: membership.branch.name, code: membership.branch.code, isPrimary: membership.isPrimary }))
     };
   }
 
@@ -126,7 +129,8 @@ export class PrismaUserRepository {
             }
           }
         }
-      }
+      },
+      branchMemberships: { include: { branch: true } }
     } as const;
   }
 }

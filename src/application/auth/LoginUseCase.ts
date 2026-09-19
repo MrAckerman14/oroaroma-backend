@@ -66,7 +66,8 @@ export class LoginUseCase {
                   }
                 }
               }
-            }
+            },
+            branchMemberships: { include: { branch: true } }
           }
         }
       }

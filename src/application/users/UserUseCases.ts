@@ -130,6 +130,11 @@ export class UserUseCases {
       });
     }
 
+    const primaryBranch = await this.prisma.branch.findFirst({ where: { tenantId, isPrimary: true }, select: { id: true } });
+    if (primaryBranch) {
+      await this.prisma.branchMembership.upsert({ where: { branchId_userId: { branchId: primaryBranch.id, userId: user.id } }, update: {}, create: { tenantId, branchId: primaryBranch.id, userId: user.id, isPrimary: true } });
+    }
+
     return this.findById(user.id, tenantId);
   }
 

@@ -54,7 +54,11 @@ const permissions = [
   ['expense-controls:read:global', 'expense-controls', 'read', PermissionScope.GLOBAL],
   ['expense-controls:update:global', 'expense-controls', 'update', PermissionScope.GLOBAL],
   ['expense-controls:delete:global', 'expense-controls', 'delete', PermissionScope.GLOBAL],
-  ['expense-controls:export:global', 'expense-controls', 'export', PermissionScope.GLOBAL]
+  ['expense-controls:export:global', 'expense-controls', 'export', PermissionScope.GLOBAL],
+  ['branches:create:global', 'branches', 'create', PermissionScope.GLOBAL],
+  ['branches:read:global', 'branches', 'read', PermissionScope.GLOBAL],
+  ['branches:update:global', 'branches', 'update', PermissionScope.GLOBAL],
+  ['branches:assign:global', 'branches', 'assign', PermissionScope.GLOBAL]
 ] as const;
 
 const roleDefinitions = {

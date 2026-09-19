@@ -77,12 +77,14 @@ export class TenantUseCases {
         if (role.key === 'admin') adminRoleId = role.id;
       }
       if (!adminRoleId) throw new Error('No existe el rol administrador base');
+      const primaryBranch = await tx.branch.create({ data: { tenantId: tenant.id, name: 'Principal', normalizedName: 'principal', code: 'PRINCIPAL', isPrimary: true } });
       const admin = await tx.user.create({
         data: { tenantId: tenant.id, name: input.adminName.trim(), email, passwordHash, status: 'ACTIVE' }
       });
       await tx.userRoleAssignment.create({
         data: { tenantId: tenant.id, userId: admin.id, roleId: adminRoleId, scope: 'GLOBAL' }
       });
+      await tx.branchMembership.create({ data: { tenantId: tenant.id, branchId: primaryBranch.id, userId: admin.id, isPrimary: true } });
       return { id: tenant.id, slug: tenant.slug, name: tenant.name, status: tenant.status, adminEmail: admin.email };
     });
   }

@@ -29,6 +29,15 @@ export const authPlugin = fp(async (app) => {
 
     request.tenantId = user.tenantId;
     request.authUser = user;
+    const requestedBranchId = request.headers['x-branch-id'];
+    if (typeof requestedBranchId === 'string' && requestedBranchId) {
+      const allowed = user.branches?.some((branch) => branch.id === requestedBranchId);
+      const hasGlobalBranchAccess = user.permissions.some((permission) => permission.key === 'branches:read:global');
+      if (!allowed && !hasGlobalBranchAccess) throw new ForbiddenError('No tienes acceso a la sucursal seleccionada');
+      const branch = await app.container.prisma.branch.findFirst({ where: { id: requestedBranchId, tenantId: user.tenantId, status: 'ACTIVE' }, select: { id: true } });
+      if (!branch) throw new ForbiddenError('La sucursal seleccionada no está disponible');
+      request.branchId = branch.id;
+    }
   });
 
   app.decorate('authorize', (resource: RbacResource, action: RbacAction) => {
@@ -86,7 +95,8 @@ function moduleForResource(resource: RbacResource): TenantModuleKey | null {
     'cash-closures': 'cash-closures',
     reports: 'cash-closures',
     'inventory-reports': 'inventory-reports',
-    'expense-controls': 'expenses'
+    'expense-controls': 'expenses',
+    branches: 'users'
   };
   return modules[resource] ?? null;
 }

@@ -49,6 +49,11 @@ enum ExpenseType {
   INCOME
 }
 
+enum BranchStatus {
+  ACTIVE
+  INACTIVE
+}
+
 model Tenant {
   id        String       @id @default(uuid())
   slug      String       @unique
@@ -74,6 +79,8 @@ model Tenant {
   expenseControls        ExpenseControl[]
   expenseReports         ExpenseReport[]
   expenseReportDetails   ExpenseReportDetail[]
+  branches               Branch[]
+  branchMemberships      BranchMembership[]
 
   @@index([status])
 }
@@ -103,11 +110,50 @@ model User {
   platformRoles    PlatformRoleAssignment[]
   expenseControls  ExpenseControl[] @relation("ExpenseControlCreator")
   expenseReports   ExpenseReport[]  @relation("ExpenseReportCreator")
+  branchMemberships BranchMembership[]
 
   @@index([tenantId])
   @@index([tenantId, email])
   @@index([status])
   @@index([deletedAt])
+}
+
+model Branch {
+  id             String       @id @default(uuid())
+  tenantId       String
+  name           String
+  normalizedName String
+  code           String
+  address        String?
+  phone          String?
+  status         BranchStatus @default(ACTIVE)
+  isPrimary      Boolean      @default(false)
+  createdAt      DateTime     @default(now())
+  updatedAt      DateTime     @updatedAt
+
+  tenant      Tenant             @relation(fields: [tenantId], references: [id], onDelete: Restrict)
+  memberships BranchMembership[]
+
+  @@unique([tenantId, normalizedName])
+  @@unique([tenantId, code])
+  @@index([tenantId, status])
+}
+
+model BranchMembership {
+  id        String   @id @default(uuid())
+  tenantId  String
+  branchId  String
+  userId    String
+  isPrimary Boolean  @default(false)
+  createdAt DateTime @default(now())
+
+  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Restrict)
+  branch Branch @relation(fields: [branchId], references: [id], onDelete: Cascade)
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([branchId, userId])
+  @@index([tenantId, userId])
+  @@index([userId, isPrimary])
 }
 
 model Role {
