@@ -34,8 +34,6 @@ export class BranchUseCases {
         data: { tenantId: actor.tenantId, name: `Inventario ${input.name.trim()}`, normalizedName: `branch-${branchId}` }
       });
       const branch = await tx.branch.create({ data: { id: branchId, tenantId: actor.tenantId, name: input.name.trim(), normalizedName, code, address: input.address?.trim() || null, phone: input.phone?.trim() || null, defaultInventoryPoolId: pool.id } });
-      const products = await tx.store.findMany({ where: { tenantId: actor.tenantId, deletedAt: null }, select: { id: true } });
-      if (products.length) await tx.inventoryPoolStock.createMany({ data: products.map((product) => ({ tenantId: actor.tenantId, poolId: pool.id, productId: product.id, stock: 0 })) });
       await tx.branchMembership.upsert({
         where: { branchId_userId: { branchId: branch.id, userId: actor.id } },
         update: {},

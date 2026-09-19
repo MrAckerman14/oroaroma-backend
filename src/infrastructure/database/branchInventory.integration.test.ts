@@ -4,6 +4,7 @@ import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { BranchUseCases } from '../../application/branches/BranchUseCases.js';
 import { CreateSaleUseCase } from '../../application/sales/CreateSaleUseCase.js';
 import { SaleUseCases } from '../../application/sales/SaleUseCases.js';
+import { StoreUseCases } from '../../application/stores/StoreUseCases.js';
 import type { AuthenticatedUser } from '../../types/rbac.js';
 
 const describeDb = process.env.RUN_DB_TESTS === 'true' ? describe : describe.skip;
@@ -68,6 +69,19 @@ describeDb('branch inventory isolation and reversible sales', () => {
     await sales.update(saleB.id, actor, branchB.id, { status: 'CANCELLED' });
     expect(await balance(branchA.defaultInventoryPoolId!)).toBe(8);
     await expect(sales.update(saleA.id, actor, branchB.id, { status: 'CANCELLED' })).rejects.toThrow('Venta no encontrada');
+  });
+
+  it('shows only products assigned to the effective branch inventory', async () => {
+    const branches = new BranchUseCases(prisma);
+    const stores = new StoreUseCases(prisma);
+    const emptyBranch = await branches.create(actor, { name: 'Vacia', code: 'VACIA' });
+
+    const independent = await stores.list(tenantId, emptyBranch.id, { page: 1, pageSize: 20 });
+    expect(independent.items).toHaveLength(0);
+
+    await branches.configureInventorySharing(actor, emptyBranch.id, { mode: 'FULL', sourceBranchId: branchA.id });
+    const shared = await stores.list(tenantId, emptyBranch.id, { page: 1, pageSize: 20 });
+    expect(shared.items.map((item) => item.id)).toEqual([productId]);
   });
 });
 
