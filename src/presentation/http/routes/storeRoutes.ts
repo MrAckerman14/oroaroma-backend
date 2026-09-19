@@ -17,7 +17,7 @@ export async function storeRoutes(app: FastifyInstance) {
     async (request) => {
       const query = storeListQuerySchema.parse(request.query);
       return {
-        data: await stores.list(request.authUser!.tenantId, query, {
+        data: await stores.list(request.authUser!.tenantId, request.branchId!, query, {
           includeSensitivePrices: canReadSensitiveStorePrices(request.authUser!),
           from: query.from,
           to: query.to,
@@ -35,7 +35,9 @@ export async function storeRoutes(app: FastifyInstance) {
     async (request, reply) => {
       const { input, image } = await parseCreateStoreRequest(request);
       const tenantId = request.authUser!.tenantId;
-      const store = image ? await stores.createWithImage(tenantId, input, image) : await stores.create(tenantId, input);
+      const store = image
+        ? await stores.createWithImage(tenantId, request.branchId!, input, image)
+        : await stores.create(tenantId, request.branchId!, input);
       return reply.status(201).send({ data: store });
     }
   );
@@ -99,7 +101,7 @@ export async function storeRoutes(app: FastifyInstance) {
     async (request) => {
       const params = idParamsSchema.parse(request.params);
       return {
-        data: await stores.findById(params.id, request.authUser!.tenantId, canReadSensitiveStorePrices(request.authUser!))
+        data: await stores.findById(params.id, request.authUser!.tenantId, request.branchId!, canReadSensitiveStorePrices(request.authUser!))
       };
     }
   );
@@ -110,7 +112,7 @@ export async function storeRoutes(app: FastifyInstance) {
     async (request) => {
       const params = idParamsSchema.parse(request.params);
       const input = updateStoreSchema.parse(request.body);
-      return { data: await stores.update(params.id, request.authUser!.tenantId, input) };
+      return { data: await stores.update(params.id, request.authUser!.tenantId, request.branchId!, input) };
     }
   );
 

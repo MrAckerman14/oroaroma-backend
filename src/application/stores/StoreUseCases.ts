@@ -2,6 +2,7 @@ import type { Prisma, PrismaClient } from '@prisma/client';
 import { NotFoundError, ValidationAppError } from '../../shared/errors/AppError.js';
 import { buildCreatedAtFilter, parseDateRange } from '../../shared/utils/dateRange.js';
 import type { StorageService, StoredFile, UploadFileInput } from '../files/StorageService.js';
+import { InventoryStockService } from '../inventory/InventoryStockService.js';
 
 export interface StoreInput {
   name?: string | undefined;
@@ -28,12 +29,21 @@ export interface StoreListOptions {
 }
 
 export class StoreUseCases {
+  private readonly inventory = new InventoryStockService();
   constructor(
     private readonly prisma: PrismaClient,
     private readonly storage?: StorageService
   ) {}
 
-  async list(tenantId: string, pagination: PaginationInput, options: StoreListOptions = {}) {
+  async list(
+    tenantId: string,
+    branchIdOrPagination: string | PaginationInput,
+    paginationOrOptions: PaginationInput | StoreListOptions = {},
+    explicitOptions: StoreListOptions = {}
+  ) {
+    const branchId = typeof branchIdOrPagination === 'string' ? branchIdOrPagination : undefined;
+    const pagination = (typeof branchIdOrPagination === 'string' ? paginationOrOptions : branchIdOrPagination) as PaginationInput;
+    const options = (typeof branchIdOrPagination === 'string' ? explicitOptions : paginationOrOptions) as StoreListOptions;
     const stockFilter = this.stockFilter(options);
     const searchFilter = this.searchFilter(options.search);
     const where: Prisma.StoreWhereInput = {
@@ -56,11 +66,14 @@ export class StoreUseCases {
 
       const soldQuantities = await this.soldQuantitiesForStores(
         stores.map((store) => store.id),
-        options
+        options,
+        branchId
       );
+      const stocks = branchId ? await this.stockByProduct(tenantId, branchId, stores.map((store) => store.id)) : new Map(stores.map((store) => [store.id, store.stock]));
 
       const items = stores.map((store) => ({
         ...store,
+        stock: stocks.get(store.id) ?? 0,
         quantitySold: soldQuantities.get(store.id) ?? 0,
         soldQuantity: soldQuantities.get(store.id) ?? 0,
         totalSold: soldQuantities.get(store.id) ?? 0,
@@ -81,12 +94,15 @@ export class StoreUseCases {
 
     const soldQuantities = await this.soldQuantitiesForStores(
       stores.map((store) => store.id),
-      options
+      options,
+      branchId
     );
+    const stocks = branchId ? await this.stockByProduct(tenantId, branchId, stores.map((store) => store.id)) : new Map(stores.map((store) => [store.id, store.stock]));
 
     const enriched = stores
       .map((store) => ({
         ...store,
+        stock: stocks.get(store.id) ?? 0,
         quantitySold: soldQuantities.get(store.id) ?? 0,
         soldQuantity: soldQuantities.get(store.id) ?? 0,
         totalSold: soldQuantities.get(store.id) ?? 0,
@@ -110,7 +126,7 @@ export class StoreUseCases {
     );
   }
 
-  async create(tenantId: string, input: {
+  async create(tenantId: string, branchId: string, input: {
     name: string;
     description?: string | undefined;
     purchasePrice: string;
@@ -118,20 +134,23 @@ export class StoreUseCases {
     stock: number;
     imagePath?: string | undefined;
   }) {
-    return this.prisma.store.create({
-      data: {
+    return this.prisma.$transaction(async (tx) => {
+      const product = await tx.store.create({ data: {
         tenantId,
         name: input.name,
         description: input.description ?? null,
         purchasePrice: input.purchasePrice,
         salePrice: input.salePrice,
-        stock: input.stock,
+        stock: 0,
         imagePath: input.imagePath ?? null
-      }
+      }});
+      const poolId = await this.inventory.resolvePoolId(tx, tenantId, branchId, product.id);
+      await tx.inventoryPoolStock.create({ data: { tenantId, poolId, productId: product.id, stock: input.stock } });
+      return { ...product, stock: input.stock };
     });
   }
 
-  async createWithImage(tenantId: string, input: {
+  async createWithImage(tenantId: string, branchId: string, input: {
     name: string;
     description?: string | undefined;
     purchasePrice: string;
@@ -148,7 +167,7 @@ export class StoreUseCases {
         savedFile = await this.storage.saveProductImage(file);
       }
 
-      return await this.create(tenantId, {
+      return await this.create(tenantId, branchId, {
         ...input,
         ...(savedFile ? { imagePath: savedFile.publicPath } : {})
       });
@@ -161,24 +180,31 @@ export class StoreUseCases {
     }
   }
 
-  async findById(id: string, tenantId: string, includeSensitivePrices = false) {
+  async findById(id: string, tenantId: string, branchId: string, includeSensitivePrices = false) {
     const store = await this.findActive(id, tenantId);
-    return this.presentStore(store, includeSensitivePrices);
+    const stocks = await this.stockByProduct(tenantId, branchId, [id]);
+    return this.presentStore({ ...store, stock: stocks.get(id) ?? 0 }, includeSensitivePrices);
   }
 
-  async update(id: string, tenantId: string, input: StoreInput) {
+  async update(id: string, tenantId: string, branchId: string, input: StoreInput) {
     await this.findActive(id, tenantId);
-
-    return this.prisma.store.update({
-      where: { id },
-      data: {
+    return this.prisma.$transaction(async (tx) => {
+      const product = await tx.store.update({ where: { id }, data: {
         ...(input.name ? { name: input.name } : {}),
         ...(input.description !== undefined ? { description: input.description } : {}),
         ...(input.purchasePrice ? { purchasePrice: input.purchasePrice } : {}),
         ...(input.salePrice ? { salePrice: input.salePrice } : {}),
-        ...(input.stock !== undefined ? { stock: input.stock } : {}),
         ...(input.imagePath !== undefined ? { imagePath: input.imagePath } : {})
+      }});
+      const poolId = await this.inventory.resolvePoolId(tx, tenantId, branchId, id);
+      if (input.stock !== undefined) {
+        await tx.inventoryPoolStock.upsert({
+          where: { poolId_productId: { poolId, productId: id } },
+          update: { stock: input.stock }, create: { tenantId, poolId, productId: id, stock: input.stock }
+        });
       }
+      const balance = await tx.inventoryPoolStock.findUnique({ where: { poolId_productId: { poolId, productId: id } } });
+      return { ...product, stock: balance?.stock ?? 0 };
     });
   }
 
@@ -334,7 +360,7 @@ export class StoreUseCases {
     } satisfies Prisma.StoreWhereInput;
   }
 
-  private async soldQuantitiesForStores(storeIds: string[], options: StoreListOptions) {
+  private async soldQuantitiesForStores(storeIds: string[], options: StoreListOptions, branchId?: string) {
     const quantities = new Map<string, number>();
     if (!storeIds.length) return quantities;
 
@@ -346,6 +372,7 @@ export class StoreUseCases {
       where: {
         storeId: { in: storeIds },
         sale: {
+          ...(branchId ? { branchId } : {}),
           status: 'FINALIZED',
           deletedAt: null,
           OR: [
@@ -367,6 +394,28 @@ export class StoreUseCases {
     }
 
     return quantities;
+  }
+
+  private async stockByProduct(tenantId: string, branchId: string, productIds: string[]) {
+    const result = new Map<string, number>();
+    if (!productIds.length) return result;
+    const branch = await this.prisma.branch.findFirst({
+      where: { id: branchId, tenantId }, select: { defaultInventoryPoolId: true }
+    });
+    if (!branch) throw new ValidationAppError('La sucursal seleccionada no está disponible');
+    const overrides = await this.prisma.branchInventoryProductOverride.findMany({
+      where: { tenantId, branchId, productId: { in: productIds } }, select: { productId: true, poolId: true }
+    });
+    const poolByProduct = new Map(overrides.map((override) => [override.productId, override.poolId]));
+    const stocks = await this.prisma.inventoryPoolStock.findMany({
+      where: { tenantId, productId: { in: productIds } }, select: { productId: true, poolId: true, stock: true }
+    });
+    for (const stock of stocks) {
+      if (stock.poolId === (poolByProduct.get(stock.productId) ?? branch.defaultInventoryPoolId)) {
+        result.set(stock.productId, stock.stock);
+      }
+    }
+    return result;
   }
 
   private soldRange(options: StoreListOptions) {

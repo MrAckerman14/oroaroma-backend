@@ -17,7 +17,7 @@ export async function saleRoutes(app: FastifyInstance) {
       const query = dateRangePaginationQuerySchema.extend({
         status: updateSaleSchema.shape.status
       }).parse(request.query);
-      return { data: await sales.list(request.authUser!, query) };
+      return { data: await sales.list(request.authUser!, request.branchId!, query) };
     }
   );
 
@@ -34,7 +34,12 @@ export async function saleRoutes(app: FastifyInstance) {
         throw new ForbiddenError('No puedes crear ventas para otro colaborador');
       }
 
-      const sale = await createSale.execute(input.employeeId ?? request.authUser!.id, input);
+      const sale = await createSale.execute(
+        input.employeeId ?? request.authUser!.id,
+        request.authUser!.tenantId,
+        request.branchId!,
+        input
+      );
       return reply.status(201).send({ data: sale });
     }
   );
@@ -45,7 +50,7 @@ export async function saleRoutes(app: FastifyInstance) {
     async (request) => {
       const params = idParamsSchema.parse(request.params);
       const input = updateSaleSchema.parse(request.body);
-      return { data: await sales.update(params.id, request.authUser!, input) };
+      return { data: await sales.update(params.id, request.authUser!, request.branchId!, input) };
     }
   );
 
@@ -54,7 +59,7 @@ export async function saleRoutes(app: FastifyInstance) {
     { preHandler: [app.authenticate, app.authorize('sales', 'delete')] },
     async (request, reply) => {
       const params = idParamsSchema.parse(request.params);
-      await sales.softDelete(params.id, request.authUser!);
+      await sales.softDelete(params.id, request.authUser!, request.branchId!);
       return reply.status(204).send();
     }
   );

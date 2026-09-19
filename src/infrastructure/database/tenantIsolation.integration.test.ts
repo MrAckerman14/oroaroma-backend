@@ -8,6 +8,8 @@ const prisma = new PrismaClient();
 const runId = `tenant-test-${Date.now()}`;
 const tenantA = `${runId}-a`;
 const tenantB = `${runId}-b`;
+let branchA: { id: string; defaultInventoryPoolId: string | null };
+let branchB: { id: string; defaultInventoryPoolId: string | null };
 
 describeDb('tenant SQL isolation', () => {
   beforeAll(async () => {
@@ -17,16 +19,23 @@ describeDb('tenant SQL isolation', () => {
         { id: tenantB, slug: tenantB, name: 'Tenant B' }
       ]
     });
+    const poolA = await prisma.inventoryPool.create({ data: { tenantId: tenantA, name: 'A', normalizedName: 'a' } });
+    const poolB = await prisma.inventoryPool.create({ data: { tenantId: tenantB, name: 'B', normalizedName: 'b' } });
+    branchA = await prisma.branch.create({ data: { tenantId: tenantA, name: 'Principal', normalizedName: 'principal', code: 'PRINCIPAL', isPrimary: true, defaultInventoryPoolId: poolA.id } });
+    branchB = await prisma.branch.create({ data: { tenantId: tenantB, name: 'Principal', normalizedName: 'principal', code: 'PRINCIPAL', isPrimary: true, defaultInventoryPoolId: poolB.id } });
   });
 
   afterAll(async () => {
     try {
       await prisma.saleDetail.deleteMany({ where: { tenantId: { in: [tenantA, tenantB] } } });
       await prisma.sale.deleteMany({ where: { tenantId: { in: [tenantA, tenantB] } } });
+      await prisma.inventoryPoolStock.deleteMany({ where: { tenantId: { in: [tenantA, tenantB] } } });
       await prisma.store.deleteMany({ where: { tenantId: { in: [tenantA, tenantB] } } });
       await prisma.refreshSession.deleteMany({ where: { tenantId: { in: [tenantA, tenantB] } } });
       await prisma.user.deleteMany({ where: { tenantId: { in: [tenantA, tenantB] } } });
       await prisma.tenantModuleSetting.deleteMany({ where: { tenantId: { in: [tenantA, tenantB] } } });
+      await prisma.branch.deleteMany({ where: { tenantId: { in: [tenantA, tenantB] } } });
+      await prisma.inventoryPool.deleteMany({ where: { tenantId: { in: [tenantA, tenantB] } } });
       await prisma.tenant.deleteMany({ where: { id: { in: [tenantA, tenantB] } } });
     } catch (error) {
       if ((error as { name?: string }).name !== 'PrismaClientInitializationError') {
@@ -72,6 +81,7 @@ describeDb('tenant SQL isolation', () => {
     await expect(prisma.sale.create({
       data: {
         tenantId: tenantA,
+        branchId: branchA.id,
         employeeId: employee.id,
         sellerId: seller.id,
         amount: '100.00',
@@ -98,6 +108,7 @@ describeDb('tenant SQL isolation', () => {
     const sale = await prisma.sale.create({
       data: {
         tenantId: tenantA,
+        branchId: branchA.id,
         employeeId: employee.id,
         amount: '100.00',
         amountCash: '100.00',
@@ -113,6 +124,7 @@ describeDb('tenant SQL isolation', () => {
         tenantId: tenantA,
         saleId: sale.id,
         storeId: store.id,
+        inventoryPoolId: branchA.defaultInventoryPoolId,
         quantity: 1,
         unitPrice: '20.00',
         purchaseUnitPrice: '10.00'

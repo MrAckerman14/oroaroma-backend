@@ -4,6 +4,7 @@ import { buildCreatedAtFilter, dateRangeOrCurrentDay } from '../../shared/utils/
 import { hasRoleKey } from '../../shared/utils/roleKeys.js';
 import type { AuthenticatedUser } from '../../types/rbac.js';
 import { presentSale } from './salePresenter.js';
+import { InventoryStockService } from '../inventory/InventoryStockService.js';
 
 export interface SaleListQuery {
   from?: string | undefined;
@@ -29,14 +30,18 @@ export interface UpdateSaleInput {
 }
 
 export class SaleUseCases {
+  private readonly inventory = new InventoryStockService();
+
   constructor(private readonly prisma: PrismaClient) {}
 
-  async list(actor: AuthenticatedUser, query: SaleListQuery) {
+  async list(actor: AuthenticatedUser, branchId: string, query: SaleListQuery) {
     const range = dateRangeOrCurrentDay({ from: query.from, to: query.to });
     const createdAt = buildCreatedAtFilter(range);
     const accessWhere = this.buildAccessWhere(actor);
 
     const where = {
+      tenantId: actor.tenantId,
+      branchId,
       deletedAt: null,
       ...(query.status ? { status: query.status } : {}),
       ...(createdAt ? { createdAt } : {}),
@@ -57,8 +62,8 @@ export class SaleUseCases {
     return this.paginated(items.map((sale) => presentSale(sale)), total, query);
   }
 
-  async update(id: string, actor: AuthenticatedUser, input: UpdateSaleInput) {
-    const sale = await this.findActive(id);
+  async update(id: string, actor: AuthenticatedUser, branchId: string, input: UpdateSaleInput) {
+    const sale = await this.findActive(id, actor.tenantId, branchId);
     const action = input.status === 'FINALIZED'
       ? 'finalize'
       : input.status === 'CANCELLED'
@@ -95,15 +100,17 @@ export class SaleUseCases {
       }
 
       const itemUpdate = input.items && itemChangesRequested
-        ? await this.replaceSaleItems(tx, id, input.items)
+        ? await this.replaceSaleItems(tx, { ...sale, branchId: sale.branchId! }, input.items)
         : undefined;
 
       if (input.status === 'CANCELLED' && sale.status !== 'CANCELLED') {
         const details = await tx.saleDetail.findMany({ where: { saleId: id } });
         for (const detail of details) {
-          await tx.store.update({
-            where: { id: detail.storeId },
-            data: { stock: { increment: detail.quantity } }
+          await this.inventory.increment(tx, {
+            tenantId: sale.tenantId,
+            poolId: detail.inventoryPoolId!,
+            productId: detail.storeId,
+            quantity: detail.quantity
           });
         }
       }
@@ -115,18 +122,13 @@ export class SaleUseCases {
         });
 
         for (const detail of details) {
-          const updated = await tx.store.updateMany({
-            where: {
-              id: detail.storeId,
-              stock: { gte: detail.quantity },
-              deletedAt: null
-            },
-            data: { stock: { decrement: detail.quantity } }
+          await this.inventory.decrementFromPool(tx, {
+            tenantId: sale.tenantId,
+            poolId: detail.inventoryPoolId!,
+            productId: detail.storeId,
+            quantity: detail.quantity,
+            productName: detail.store.name
           });
-
-          if (updated.count !== 1) {
-            throw new ValidationAppError(`Stock insuficiente para reabrir ${detail.store.name}`);
-          }
         }
       }
 
@@ -180,16 +182,18 @@ export class SaleUseCases {
     return presentSale(updatedSale);
   }
 
-  async softDelete(id: string, actor: AuthenticatedUser) {
-    const sale = await this.findActive(id);
+  async softDelete(id: string, actor: AuthenticatedUser, branchId: string) {
+    const sale = await this.findActive(id, actor.tenantId, branchId);
     this.assertCanAccessSale(actor, sale, 'delete');
 
     await this.prisma.$transaction(async (tx) => {
       if (sale.status !== 'CANCELLED') {
         for (const detail of sale.details) {
-          await tx.store.update({
-            where: { id: detail.storeId },
-            data: { stock: { increment: detail.quantity } }
+          await this.inventory.increment(tx, {
+            tenantId: sale.tenantId,
+            poolId: detail.inventoryPoolId!,
+            productId: detail.storeId,
+            quantity: detail.quantity
           });
         }
       }
@@ -201,9 +205,9 @@ export class SaleUseCases {
     });
   }
 
-  private async findActive(id: string) {
+  private async findActive(id: string, tenantId: string, branchId: string) {
     const sale = await this.prisma.sale.findFirst({
-      where: { id, deletedAt: null },
+      where: { id, tenantId, branchId, deletedAt: null },
       include: { details: true, closureDetails: true }
     });
     if (!sale) throw new NotFoundError('Venta no encontrada');
@@ -276,16 +280,17 @@ export class SaleUseCases {
 
   private async replaceSaleItems(
     tx: Prisma.TransactionClient,
-    saleId: string,
+    sale: { id: string; tenantId: string; branchId: string },
     items: Array<{ productId: string; quantity: number }>
   ) {
     const mergedItems = this.mergeItems(items);
     const productIds = mergedItems.map((item) => item.productId);
     const [currentDetails, products] = await Promise.all([
-      tx.saleDetail.findMany({ where: { saleId } }),
+      tx.saleDetail.findMany({ where: { saleId: sale.id } }),
       tx.store.findMany({
         where: {
           id: { in: productIds },
+          tenantId: sale.tenantId,
           deletedAt: null
         }
       })
@@ -293,12 +298,14 @@ export class SaleUseCases {
 
     const productsById = new Map(products.map((product) => [product.id, product]));
     const currentQuantityByProduct = new Map<string, number>();
+    const currentPoolByProduct = new Map<string, string>();
 
     for (const detail of currentDetails) {
       currentQuantityByProduct.set(
         detail.storeId,
         (currentQuantityByProduct.get(detail.storeId) ?? 0) + detail.quantity
       );
+      currentPoolByProduct.set(detail.storeId, detail.inventoryPoolId!);
     }
 
     for (const item of mergedItems) {
@@ -310,37 +317,35 @@ export class SaleUseCases {
       const currentQuantity = currentQuantityByProduct.get(item.productId) ?? 0;
       const delta = item.quantity - currentQuantity;
       if (delta > 0) {
-        const updated = await tx.store.updateMany({
-          where: {
-            id: item.productId,
-            stock: { gte: delta },
-            deletedAt: null
-          },
-          data: { stock: { decrement: delta } }
+        const poolId = currentPoolByProduct.get(item.productId)
+          ?? await this.inventory.resolvePoolId(tx, sale.tenantId, sale.branchId, item.productId);
+        await this.inventory.decrementFromPool(tx, {
+          tenantId: sale.tenantId, poolId, productId: item.productId, quantity: delta, productName: product.name
         });
-
-        if (updated.count !== 1) {
-          throw new ValidationAppError(`Stock insuficiente para ${product.name}`);
-        }
+        currentPoolByProduct.set(item.productId, poolId);
       }
 
       if (delta < 0) {
-        await tx.store.update({
-          where: { id: item.productId },
-          data: { stock: { increment: Math.abs(delta) } }
+        await this.inventory.increment(tx, {
+          tenantId: sale.tenantId,
+          poolId: currentPoolByProduct.get(item.productId)!,
+          productId: item.productId,
+          quantity: Math.abs(delta)
         });
       }
     }
 
     for (const [productId, currentQuantity] of currentQuantityByProduct.entries()) {
       if (productIds.includes(productId)) continue;
-      await tx.store.update({
-        where: { id: productId },
-        data: { stock: { increment: currentQuantity } }
+      await this.inventory.increment(tx, {
+        tenantId: sale.tenantId,
+        poolId: currentPoolByProduct.get(productId)!,
+        productId,
+        quantity: currentQuantity
       });
     }
 
-    await tx.saleDetail.deleteMany({ where: { saleId } });
+    await tx.saleDetail.deleteMany({ where: { saleId: sale.id } });
     await tx.saleDetail.createMany({
       data: mergedItems.map((item) => {
         const product = productsById.get(item.productId);
@@ -349,8 +354,10 @@ export class SaleUseCases {
         }
 
         return {
-          saleId,
+          tenantId: sale.tenantId,
+          saleId: sale.id,
           storeId: item.productId,
+          inventoryPoolId: currentPoolByProduct.get(item.productId)!,
           quantity: item.quantity,
           unitPrice: product.salePrice,
           purchaseUnitPrice: product.purchasePrice

@@ -12,6 +12,8 @@ const tenantB = `expense-b-${suffix}`;
 let actorA: AuthenticatedUser;
 let categoryA: { id: string };
 let categoryB: { id: string };
+let branchA: { id: string };
+let branchB: { id: string };
 
 describeDb('expense control tenant isolation and reports', () => {
   beforeAll(async () => {
@@ -21,6 +23,10 @@ describeDb('expense control tenant isolation and reports', () => {
     ] });
     const user = await prisma.user.create({ data: { tenantId: tenantA, name: 'Admin A', email: `${tenantA}@test.local`, passwordHash: 'not-used' } });
     actorA = { id: user.id, tenantId: tenantA, email: user.email, name: user.name, status: 'ACTIVE', statusLabel: 'Activo', roles: [], permissions: [] };
+    const poolA = await prisma.inventoryPool.create({ data: { tenantId: tenantA, name: 'A', normalizedName: 'a' } });
+    const poolB = await prisma.inventoryPool.create({ data: { tenantId: tenantB, name: 'B', normalizedName: 'b' } });
+    branchA = await prisma.branch.create({ data: { tenantId: tenantA, name: 'Principal', normalizedName: 'principal', code: 'PRINCIPAL', isPrimary: true, defaultInventoryPoolId: poolA.id } });
+    branchB = await prisma.branch.create({ data: { tenantId: tenantB, name: 'Principal', normalizedName: 'principal', code: 'PRINCIPAL', isPrimary: true, defaultInventoryPoolId: poolB.id } });
     categoryA = await prisma.expenseCategory.create({ data: { tenantId: tenantA, name: 'Publicidad', normalizedName: 'publicidad' } });
     categoryB = await prisma.expenseCategory.create({ data: { tenantId: tenantB, name: 'Privado B', normalizedName: 'privado b' } });
   });
@@ -31,6 +37,8 @@ describeDb('expense control tenant isolation and reports', () => {
     await prisma.expenseReport.deleteMany({ where: { tenantId: { in: [tenantA, tenantB] } } });
     await prisma.expenseControl.deleteMany({ where: { tenantId: { in: [tenantA, tenantB] } } });
     await prisma.expenseCategory.deleteMany({ where: { tenantId: { in: [tenantA, tenantB] } } });
+    await prisma.branch.deleteMany({ where: { tenantId: { in: [tenantA, tenantB] } } });
+    await prisma.inventoryPool.deleteMany({ where: { tenantId: { in: [tenantA, tenantB] } } });
     await prisma.user.deleteMany({ where: { tenantId: { in: [tenantA, tenantB] } } });
     await prisma.tenant.deleteMany({ where: { id: { in: [tenantA, tenantB] } } });
     await prisma.$disconnect();
@@ -38,19 +46,19 @@ describeDb('expense control tenant isolation and reports', () => {
 
   it('crea y lista movimientos únicamente dentro del tenant', async () => {
     const useCases = new ExpenseUseCases(prisma);
-    await useCases.create(actorA, { amount: 1500, type: 'EXPENSE', categoryId: categoryA.id, date: '2026-09-17', description: 'Campaña' });
-    const result = await useCases.list(actorA, { from: '2026-09-17', to: '2026-09-17', page: 1, pageSize: 20 });
+    await useCases.create(actorA, branchA.id, { amount: 1500, type: 'EXPENSE', categoryId: categoryA.id, date: '2026-09-17', description: 'Campaña' });
+    const result = await useCases.list(actorA, branchA.id, { from: '2026-09-17', to: '2026-09-17', page: 1, pageSize: 20 });
     expect(result.items).toHaveLength(1);
     expect(result.items[0]?.tenantId).toBe(tenantA);
   });
 
   it('rechaza categorías pertenecientes a otra empresa', async () => {
     const useCases = new ExpenseUseCases(prisma);
-    await expect(useCases.create(actorA, { amount: 10, type: 'EXPENSE', categoryId: categoryB.id, date: '2026-09-17' }))
+    await expect(useCases.create(actorA, branchA.id, { amount: 10, type: 'EXPENSE', categoryId: categoryB.id, date: '2026-09-17' }))
       .rejects.toThrow('La categoría no existe en esta empresa');
 
     await expect(prisma.expenseControl.create({
-      data: { tenantId: tenantA, amount: 10, type: 'EXPENSE', categoryId: categoryB.id, date: new Date(), createdById: actorA.id }
+      data: { tenantId: tenantA, branchId: branchA.id, amount: 10, type: 'EXPENSE', categoryId: categoryB.id, date: new Date(), createdById: actorA.id }
     })).rejects.toThrow(/tenant boundary/i);
   });
 
@@ -66,8 +74,8 @@ describeDb('expense control tenant isolation and reports', () => {
 
   it('mantiene el reporte histórico aunque el movimiento cambie después', async () => {
     const useCases = new ExpenseUseCases(prisma);
-    const movement = await useCases.create(actorA, { amount: 250, type: 'INCOME', categoryName: 'Ingreso prueba', date: '2026-09-18' });
-    const report = await useCases.createReport(actorA, { name: 'Cierre de prueba', fromDate: '2026-09-18', toDate: '2026-09-18' });
+    const movement = await useCases.create(actorA, branchA.id, { amount: 250, type: 'INCOME', categoryName: 'Ingreso prueba', date: '2026-09-18' });
+    const report = await useCases.createReport(actorA, branchA.id, { name: 'Cierre de prueba', fromDate: '2026-09-18', toDate: '2026-09-18' });
     await useCases.update(actorA, movement.id, { amount: 999 });
     const detail = await useCases.reportDetail(actorA, report.id);
     expect(detail.totalIncome.toString()).toBe('250');
@@ -76,9 +84,9 @@ describeDb('expense control tenant isolation and reports', () => {
 
   it('oculta con borrado lógico sin destruir auditoría ni reportes', async () => {
     const useCases = new ExpenseUseCases(prisma);
-    const movement = await useCases.create(actorA, { amount: 75, type: 'EXPENSE', categoryId: categoryA.id, date: '2026-09-19' });
+    const movement = await useCases.create(actorA, branchA.id, { amount: 75, type: 'EXPENSE', categoryId: categoryA.id, date: '2026-09-19' });
     await useCases.remove(actorA, movement.id);
-    const result = await useCases.list(actorA, { from: '2026-09-19', to: '2026-09-19', page: 1, pageSize: 20 });
+    const result = await useCases.list(actorA, branchA.id, { from: '2026-09-19', to: '2026-09-19', page: 1, pageSize: 20 });
     expect(result.items).toEqual([]);
     expect(await prisma.auditLog.count({ where: { tenantId: tenantA, resourceId: movement.id } })).toBeGreaterThanOrEqual(2);
   });

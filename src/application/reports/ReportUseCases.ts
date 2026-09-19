@@ -12,6 +12,7 @@ export interface DateRangeInput {
 }
 
 export interface CreateCashClosureInput extends DateRangeInput {
+  branchId?: string | undefined;
   saleIds?: string[] | undefined;
   name?: string | undefined;
   note?: string | null | undefined;
@@ -68,7 +69,7 @@ export class ReportUseCases {
   async cashReconciliation(actor: AuthenticatedUser, input: CreateCashClosureInput) {
     const saleIds = this.validateRequestedSaleIds(input.saleIds);
     const where: Prisma.SaleWhereInput = saleIds?.length
-      ? this.reconciliationSalesByIdsWhere(actor, saleIds)
+      ? this.reconciliationSalesByIdsWhere(actor, saleIds, input.branchId)
       : this.reconciliationSalesWhere(actor, input);
 
     const sales = await this.prisma.sale.findMany({
@@ -94,7 +95,7 @@ export class ReportUseCases {
     try {
       return await this.prisma.$transaction(async (tx) => {
         const sales = input.saleIds?.length
-          ? await this.salesForClosureByIds(tx, actor, saleIds ?? [])
+          ? await this.salesForClosureByIds(tx, actor, saleIds ?? [], input.branchId)
           : await this.salesForClosureByRange(tx, actor, input);
 
         const range = this.closureRange(input, sales);
@@ -120,6 +121,7 @@ export class ReportUseCases {
         return tx.cashClosure.create({
           data: {
             tenantId: actor.tenantId,
+            ...(input.branchId ? { branchId: input.branchId } : {}),
             name,
             note: input.note?.trim() || null,
             createdById: actor.id,
@@ -175,10 +177,11 @@ export class ReportUseCases {
   private async salesForClosureByIds(
     tx: Prisma.TransactionClient,
     actor: AuthenticatedUser,
-    saleIds: string[]
+    saleIds: string[],
+    branchId?: string
   ) {
     return tx.sale.findMany({
-      where: this.closableSalesByIdsWhere(actor, [...new Set(saleIds)]),
+      where: this.closableSalesByIdsWhere(actor, [...new Set(saleIds)], branchId),
       include: this.saleCalculationInclude()
     });
   }
@@ -484,11 +487,12 @@ export class ReportUseCases {
     };
   }
 
-  async listClosures(actor: AuthenticatedUser, input: PaginatedDateRangeInput) {
+  async listClosures(actor: AuthenticatedUser, input: PaginatedDateRangeInput, branchId?: string) {
     const range = dateRangeOrCurrentDay(input);
     const createdAt = buildCreatedAtFilter(range);
     const where = {
       tenantId: actor.tenantId,
+      ...(branchId ? { branchId } : {}),
       deletedAt: null,
       ...(createdAt ? { createdAt } : {}),
       ...(this.canReadGlobalCashClosures(actor) ? {} : { createdById: actor.id })
@@ -511,11 +515,12 @@ export class ReportUseCases {
     return this.paginated(items.map((item) => this.presentCashClosure(item)), total, input);
   }
 
-  async closureDetails(actor: AuthenticatedUser, id: string, input: ClosureDetailsInput) {
+  async closureDetails(actor: AuthenticatedUser, id: string, input: ClosureDetailsInput, branchId?: string) {
     const closure = await this.prisma.cashClosure.findFirst({
       where: {
         id,
         tenantId: actor.tenantId,
+        ...(branchId ? { branchId } : {}),
         deletedAt: null,
         ...(this.canReadGlobalCashClosures(actor) ? {} : { createdById: actor.id })
       },
@@ -785,6 +790,8 @@ export class ReportUseCases {
     const canGlobal = actor.permissions.some((permission) => permission.key === 'reports:cash:global');
 
     return {
+      tenantId: actor.tenantId,
+      ...(input.branchId ? { branchId: input.branchId } : {}),
       status: { in: this.closableStatuses() },
       deletedAt: null,
       ...(createdAt ? { createdAt } : {}),
@@ -804,6 +811,8 @@ export class ReportUseCases {
     const canReadGlobal = this.canReadGlobalCashReconciliation(actor);
 
     return {
+      tenantId: actor.tenantId,
+      ...(input.branchId ? { branchId: input.branchId } : {}),
       status: { in: ['FINALIZED', 'CANCELLED', 'DELIVERY_PENDING'] },
       deletedAt: null,
       ...(createdAt ? { createdAt } : {}),
@@ -819,12 +828,15 @@ export class ReportUseCases {
 
   private reconciliationSalesByIdsWhere(
     actor: AuthenticatedUser,
-    saleIds: string[]
+    saleIds: string[],
+    branchId?: string
   ): Prisma.SaleWhereInput {
     const canReadGlobal = this.canReadGlobalCashReconciliation(actor);
 
     return {
       id: { in: saleIds },
+      tenantId: actor.tenantId,
+      ...(branchId ? { branchId } : {}),
       status: { in: ['FINALIZED', 'CANCELLED', 'DELIVERY_PENDING'] },
       deletedAt: null,
       ...(canReadGlobal ? {} : {
@@ -844,12 +856,15 @@ export class ReportUseCases {
 
   private closableSalesByIdsWhere(
     actor: AuthenticatedUser,
-    saleIds: string[]
+    saleIds: string[],
+    branchId?: string
   ): Prisma.SaleWhereInput {
     const canGlobal = actor.permissions.some((permission) => permission.key === 'reports:cash:global');
 
     return {
       id: { in: saleIds },
+      tenantId: actor.tenantId,
+      ...(branchId ? { branchId } : {}),
       status: { in: this.closableStatuses() },
       deletedAt: null,
       ...(canGlobal ? {} : {

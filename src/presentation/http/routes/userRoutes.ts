@@ -31,7 +31,7 @@ export async function userRoutes(app: FastifyInstance) {
       }
 
       const query = userDashboardQuerySchema.parse(request.query);
-      return { data: await users.dashboard(query, request.authUser) };
+      return { data: await users.dashboard(query, request.authUser, request.branchId) };
     }
   );
 
@@ -40,7 +40,7 @@ export async function userRoutes(app: FastifyInstance) {
     { preHandler: [app.authenticate, app.requireTenantModule('users')] },
     async (request) => {
       const query = userOptionQuerySchema.parse(request.query);
-      return { data: await users.listOptions(query, request.authUser) };
+      return { data: await users.listOptions(query, request.authUser, request.branchId) };
     }
   );
 
