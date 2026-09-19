@@ -60,6 +60,8 @@ Variables recomendadas:
 DEFAULT_PAGE_SIZE=100
 ```
 
+Para que PostgreSQL aplique RLS como segunda barrera, usa `DATABASE_URL` exclusivamente para migraciones y configura `DATABASE_RUNTIME_URL` con un rol no propietario y sin `BYPASSRLS`. Activa `REQUIRE_DATABASE_RLS_ROLE=true` para impedir que la API arranque con privilegios inseguros.
+
 Ejemplo para cargar hasta 1000 ventas en una pagina:
 
 ```txt

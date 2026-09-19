@@ -8,11 +8,16 @@ const booleanEnv = (defaultValue: 'true' | 'false') => z
 
 const envSchema = z.object({
   DATABASE_URL: z.string().min(1),
+  DATABASE_RUNTIME_URL: z.preprocess(
+    (value) => typeof value === 'string' && value.trim() === '' ? undefined : value,
+    z.string().min(1).optional()
+  ),
+  REQUIRE_DATABASE_RLS_ROLE: booleanEnv('false'),
   PORT: z.coerce.number().int().positive().default(3000),
   HOST: z.string().default('0.0.0.0'),
   NODE_ENV: z.enum(['development', 'test', 'production']).default('development'),
   JWT_SECRET: z.string().min(32, 'JWT_SECRET debe tener al menos 32 caracteres'),
-  JWT_EXPIRES_IN: z.string().default('7d'),
+  JWT_EXPIRES_IN: z.string().default('15m'),
   REFRESH_TOKEN_EXPIRES_DAYS: z.coerce.number().int().positive().default(30),
   DEFAULT_TENANT_ID: z.string().min(1).default('default'),
   TENANT_HEADER_NAME: z.string().min(1).default('x-tenant-id'),

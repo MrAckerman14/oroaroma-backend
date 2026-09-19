@@ -44,8 +44,23 @@ export class InventoryUseCases {
   }
 
   private async inventorySnapshot(tenantId: string, branchId?: string) {
+    const branch = branchId
+      ? await this.prisma.branch.findFirst({ where: { id: branchId, tenantId }, select: { defaultInventoryPoolId: true } })
+      : null;
+    if (branchId && !branch?.defaultInventoryPoolId) throw new NotFoundError('Sucursal sin inventario configurado');
+
     const products = await this.prisma.store.findMany({
-      where: { tenantId, deletedAt: null },
+      where: {
+        tenantId,
+        deletedAt: null,
+        ...(branchId && branch?.defaultInventoryPoolId ? {
+          branchExclusions: { none: { tenantId, branchId } },
+          OR: [
+            { inventoryStocks: { some: { poolId: branch.defaultInventoryPoolId } } },
+            { inventoryOverrides: { some: { tenantId, branchId } } }
+          ]
+        } : {})
+      },
       orderBy: { name: 'asc' }
     });
 
@@ -53,19 +68,21 @@ export class InventoryUseCases {
       const enriched = products.map((product) => ({ ...product, product: product.name, price: product.purchasePrice, inventoryValue: product.purchasePrice.mul(product.stock) }));
       return { products: enriched, totals: enriched.reduce((acc, product) => ({ totalProducts: acc.totalProducts + product.stock, totalInventoryValue: acc.totalInventoryValue.plus(product.inventoryValue) }), { totalProducts: 0, totalInventoryValue: new Prisma.Decimal(0) }) };
     }
-    const branch = await this.prisma.branch.findFirst({ where: { id: branchId, tenantId }, select: { defaultInventoryPoolId: true } });
-    if (!branch?.defaultInventoryPoolId) throw new NotFoundError('Sucursal sin inventario configurado');
+    const defaultPoolId = branch!.defaultInventoryPoolId!;
     const overrides = await this.prisma.branchInventoryProductOverride.findMany({ where: { tenantId, branchId }, select: { productId: true, poolId: true } });
     const overrideMap = new Map(overrides.map((item) => [item.productId, item.poolId]));
     const balances = await this.prisma.inventoryPoolStock.findMany({ where: { tenantId, productId: { in: products.map((product) => product.id) } } });
-    const stockMap = new Map(balances.filter((item) => item.poolId === (overrideMap.get(item.productId) ?? branch.defaultInventoryPoolId)).map((item) => [item.productId, item.stock]));
-    const enriched = products.map((product) => ({
-      ...product,
-      stock: stockMap.get(product.id) ?? 0,
-      product: product.name,
-      price: product.purchasePrice,
-      inventoryValue: product.purchasePrice.mul(product.stock)
-    }));
+    const stockMap = new Map(balances.filter((item) => item.poolId === (overrideMap.get(item.productId) ?? defaultPoolId)).map((item) => [item.productId, item.stock]));
+    const enriched = products.map((product) => {
+      const stock = stockMap.get(product.id) ?? 0;
+      return {
+        ...product,
+        stock,
+        product: product.name,
+        price: product.purchasePrice,
+        inventoryValue: product.purchasePrice.mul(stock)
+      };
+    });
 
     const totals = enriched.reduce((acc, product) => {
       acc.totalProducts += product.stock;

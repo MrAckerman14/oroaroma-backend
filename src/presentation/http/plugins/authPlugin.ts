@@ -67,7 +67,10 @@ export const authPlugin = fp(async (app) => {
         actor: request.authUser,
         resource,
         action,
-        ownerId: request.authUser.id
+        ...(action === 'create' ? { ownerId: request.authUser.id } : {}),
+        ...(resource === 'branches' ? {
+          assignedUserIds: request.authUser.branches?.length ? [request.authUser.id] : []
+        } : {})
       });
 
       if (!decision.allowed) {

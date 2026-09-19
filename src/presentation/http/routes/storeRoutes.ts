@@ -47,7 +47,7 @@ export async function storeRoutes(app: FastifyInstance) {
     { preHandler: [app.authenticate, app.requireTenantModule('inventory'), canReadStores] },
     async (request, reply) => {
       const query = storeListQuerySchema.parse(request.query);
-      const images = await stores.listImages(request.authUser!.tenantId, {
+      const images = await stores.listImages(request.authUser!.tenantId, request.branchId, {
         from: query.from,
         to: query.to,
         minStock: query.minStock,
@@ -83,7 +83,7 @@ export async function storeRoutes(app: FastifyInstance) {
     { preHandler: [app.authenticate, app.requireTenantModule('inventory'), canReadStores] },
     async (request, reply) => {
       const params = idParamsSchema.parse(request.params);
-      const image = await stores.imageDownload(params.id, request.authUser!.tenantId);
+      const image = await stores.imageDownload(params.id, request.authUser!.tenantId, request.branchId);
       const file = await app.container.storage.readByPublicPath(image.imagePath);
       const filename = downloadFilename(image.name, image.imagePath);
 
@@ -121,7 +121,7 @@ export async function storeRoutes(app: FastifyInstance) {
     { preHandler: [app.authenticate, app.authorize('stores', 'delete')] },
     async (request, reply) => {
       const params = idParamsSchema.parse(request.params);
-      await stores.softDelete(params.id, request.authUser!.tenantId);
+      await stores.softDelete(params.id, request.authUser!.tenantId, request.branchId);
       return reply.status(204).send();
     }
   );
@@ -131,7 +131,7 @@ export async function storeRoutes(app: FastifyInstance) {
     { preHandler: [app.authenticate, app.authorize('stores', 'restore')] },
     async (request) => {
       const params = idParamsSchema.parse(request.params);
-      return { data: await stores.restore(params.id, request.authUser!.tenantId) };
+      return { data: await stores.restore(params.id, request.authUser!.tenantId, request.branchId) };
     }
   );
 
@@ -151,7 +151,7 @@ export async function storeRoutes(app: FastifyInstance) {
       }
 
       const buffer = await image.toBuffer();
-      const result = await stores.replaceImage(params.id, request.authUser!.tenantId, {
+      const result = await stores.replaceImage(params.id, request.authUser!.tenantId, request.branchId, {
         buffer,
         originalName: image.filename,
         mimeType: image.mimetype,

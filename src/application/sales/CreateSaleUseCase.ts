@@ -22,6 +22,14 @@ export class CreateSaleUseCase {
     }
 
     return this.prisma.$transaction(async (tx) => {
+      if (tenantId && branchId) {
+        await this.assertParticipantsBelongToBranch(tx, tenantId, branchId, [
+          employeeId,
+          input.messengerId,
+          input.sellerId
+        ]);
+      }
+
       const productIds = input.items.map((item) => item.productId);
       const products = await tx.store.findMany({
         where: { id: { in: productIds }, ...(tenantId ? { tenantId } : {}), deletedAt: null }
@@ -121,5 +129,28 @@ export class CreateSaleUseCase {
 
       return presentSale(sale);
     });
+  }
+
+  private async assertParticipantsBelongToBranch(
+    tx: Prisma.TransactionClient,
+    tenantId: string,
+    branchId: string,
+    participantIds: Array<string | null | undefined>
+  ) {
+    const ids = [...new Set(participantIds.filter((id): id is string => Boolean(id)))];
+    const users = await tx.user.findMany({
+      where: {
+        id: { in: ids },
+        tenantId,
+        status: 'ACTIVE',
+        deletedAt: null,
+        branchMemberships: { some: { tenantId, branchId } }
+      },
+      select: { id: true }
+    });
+
+    if (users.length !== ids.length) {
+      throw new ValidationAppError('Todo el personal de la venta debe estar activo y asignado a la sucursal');
+    }
   }
 }

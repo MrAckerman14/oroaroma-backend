@@ -7,11 +7,13 @@ services:
     restart: unless-stopped
     environment:
       DATABASE_URL: postgresql://${POSTGRES_USER:-postgres}:${POSTGRES_PASSWORD:-postgres}@postgres:5432/${POSTGRES_DB:-oroaroma_v2}?schema=public
+      DATABASE_RUNTIME_URL: ${DATABASE_RUNTIME_URL:-}
+      REQUIRE_DATABASE_RLS_ROLE: ${REQUIRE_DATABASE_RLS_ROLE:-false}
       PORT: 3000
       HOST: 0.0.0.0
       NODE_ENV: production
       JWT_SECRET: ${JWT_SECRET:-change-me-with-a-long-random-secret-for-local-testing}
-      JWT_EXPIRES_IN: ${JWT_EXPIRES_IN:-7d}
+      JWT_EXPIRES_IN: ${JWT_EXPIRES_IN:-15m}
       REFRESH_TOKEN_EXPIRES_DAYS: ${REFRESH_TOKEN_EXPIRES_DAYS:-30}
       DEFAULT_TENANT_ID: ${DEFAULT_TENANT_ID:-default}
       TENANT_HEADER_NAME: ${TENANT_HEADER_NAME:-x-tenant-id}

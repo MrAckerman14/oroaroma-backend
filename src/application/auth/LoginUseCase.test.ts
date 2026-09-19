@@ -7,7 +7,7 @@ import type { PasswordHasher } from '../../infrastructure/security/PasswordHashe
 import type { AuthenticatedUser } from '../../types/rbac.js';
 
 describe('LoginUseCase.refresh', () => {
-  it('mantiene el refresh token vigente para evitar cerrar sesion por refresh concurrente', async () => {
+  it('rota el refresh token y revoca atomicamente el anterior', async () => {
     const authenticatedUser: AuthenticatedUser = {
       id: 'user-1',
       tenantId: 'default',
@@ -33,7 +33,12 @@ describe('LoginUseCase.refresh', () => {
           user: rawUser
         }))
       },
-      $transaction: vi.fn()
+      $transaction: vi.fn(async (callback: (tx: unknown) => Promise<unknown>) => callback({
+        refreshSession: {
+          updateMany: vi.fn(async () => ({ count: 1 })),
+          create: vi.fn(async () => ({}))
+        }
+      }))
     };
     const app = {
       jwt: {
@@ -51,15 +56,13 @@ describe('LoginUseCase.refresh', () => {
     );
 
     const firstRefresh = await login.refresh('current-refresh-token');
-    const secondRefresh = await login.refresh('current-refresh-token');
-
     expect(firstRefresh).toMatchObject({
       accessToken: 'next-access-token',
-      refreshToken: 'current-refresh-token',
       user: authenticatedUser
     });
-    expect(secondRefresh.refreshToken).toBe('current-refresh-token');
-    expect(prisma.refreshSession.findUnique).toHaveBeenCalledTimes(2);
-    expect(prisma.$transaction).not.toHaveBeenCalled();
+    expect(firstRefresh.refreshToken).toEqual(expect.any(String));
+    expect(firstRefresh.refreshToken).not.toBe('current-refresh-token');
+    expect(prisma.refreshSession.findUnique).toHaveBeenCalledTimes(1);
+    expect(prisma.$transaction).toHaveBeenCalledTimes(1);
   });
 });

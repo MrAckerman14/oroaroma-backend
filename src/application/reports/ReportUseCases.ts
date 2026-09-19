@@ -115,7 +115,11 @@ export class ReportUseCases {
         }
 
         const totals = this.cashClosureTotals(sales);
-        const pendingTotals = await this.pendingTotalsForClosure(tx, actor, { from, to });
+        const pendingTotals = await this.pendingTotalsForClosure(tx, actor, {
+          from,
+          to,
+          branchId: input.branchId
+        });
         const name = input.name?.trim() || this.defaultClosureName(from, to);
 
         return tx.cashClosure.create({
@@ -583,8 +587,8 @@ export class ReportUseCases {
     });
   }
 
-  async updateClosureStatus(actor: AuthenticatedUser, id: string, status: CashClosureStatus) {
-    const closure = await this.prisma.cashClosure.findFirst({ where: { id, tenantId: actor.tenantId, deletedAt: null } });
+  async updateClosureStatus(actor: AuthenticatedUser, id: string, branchId: string, status: CashClosureStatus) {
+    const closure = await this.prisma.cashClosure.findFirst({ where: { id, tenantId: actor.tenantId, branchId, deletedAt: null } });
     if (!closure) throw new NotFoundError('Cierre no encontrado');
 
     return this.prisma.cashClosure.update({
@@ -594,8 +598,8 @@ export class ReportUseCases {
     }).then((closure) => this.presentCashClosure(closure));
   }
 
-  async updateClosure(actor: AuthenticatedUser, id: string, input: { name?: string | undefined; note?: string | null | undefined }) {
-    const closure = await this.prisma.cashClosure.findFirst({ where: { id, tenantId: actor.tenantId, deletedAt: null } });
+  async updateClosure(actor: AuthenticatedUser, id: string, branchId: string, input: { name?: string | undefined; note?: string | null | undefined }) {
+    const closure = await this.prisma.cashClosure.findFirst({ where: { id, tenantId: actor.tenantId, branchId, deletedAt: null } });
     if (!closure) throw new NotFoundError('Cierre no encontrado');
 
     return this.prisma.cashClosure.update({
@@ -608,8 +612,8 @@ export class ReportUseCases {
     }).then((closure) => this.presentCashClosure(closure));
   }
 
-  async softDeleteClosure(actor: AuthenticatedUser, id: string) {
-    const closure = await this.prisma.cashClosure.findFirst({ where: { id, tenantId: actor.tenantId, deletedAt: null } });
+  async softDeleteClosure(actor: AuthenticatedUser, id: string, branchId: string) {
+    const closure = await this.prisma.cashClosure.findFirst({ where: { id, tenantId: actor.tenantId, branchId, deletedAt: null } });
     if (!closure) throw new NotFoundError('Cierre no encontrado');
 
     await this.prisma.cashClosure.update({
@@ -687,11 +691,13 @@ export class ReportUseCases {
   private async pendingTotalsForClosure(
     tx: Prisma.TransactionClient,
     actor: AuthenticatedUser,
-    range: { from: Date; to: Date }
+    range: { from: Date; to: Date; branchId?: string | undefined }
   ) {
     const canGlobal = actor.permissions.some((permission) => permission.key === 'reports:cash:global');
     const pendingSales = await tx.sale.findMany({
       where: {
+        tenantId: actor.tenantId,
+        ...(range.branchId ? { branchId: range.branchId } : {}),
         status: 'DELIVERY_PENDING',
         deletedAt: null,
         createdAt: { gte: range.from, lt: range.to },

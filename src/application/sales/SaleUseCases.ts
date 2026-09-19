@@ -72,22 +72,32 @@ export class SaleUseCases {
     this.assertCanAccessSale(actor, sale, action);
 
     const updatedSale = await this.prisma.$transaction(async (tx) => {
+      await tx.$queryRaw`SELECT pg_advisory_xact_lock(hashtextextended(${id}, 0)) IS NULL AS locked`;
+      const currentSale = await tx.sale.findFirst({
+        where: { id, tenantId: actor.tenantId, branchId, deletedAt: null },
+        include: { details: true, closureDetails: true }
+      });
+      if (!currentSale) throw new NotFoundError('Venta no encontrada');
+
       const isAdmin = this.hasAnyRole(actor, ['admin']);
-      const isReopeningCancelled = sale.status === 'CANCELLED'
+      const isReopeningCancelled = currentSale.status === 'CANCELLED'
         && input.status !== undefined
         && input.status !== 'CANCELLED';
+
+      this.assertStatusTransition(currentSale.status, input.status, currentSale.closureDetails.length > 0);
+      await this.assertUpdatedParticipants(tx, currentSale, input);
 
       if (isReopeningCancelled && !isAdmin) {
         throw new ValidationAppError('Solo un administrador puede reabrir una venta cancelada');
       }
 
-      if (input.status === 'CANCELLED' && sale.closureDetails.length > 0 && sale.status !== 'DELIVERY_PENDING') {
+      if (input.status === 'CANCELLED' && currentSale.closureDetails.length > 0 && currentSale.status !== 'DELIVERY_PENDING') {
         throw new ValidationAppError('No se puede cancelar una venta incluida en un cierre de caja');
       }
 
-      const itemChangesRequested = input.items ? this.saleItemsChanged(sale.details, input.items) : false;
+      const itemChangesRequested = input.items ? this.saleItemsChanged(currentSale.details, input.items) : false;
 
-      if (itemChangesRequested && sale.status === 'CANCELLED') {
+      if (itemChangesRequested && currentSale.status === 'CANCELLED') {
         throw new ValidationAppError('No se pueden editar productos de una venta cancelada');
       }
 
@@ -95,19 +105,19 @@ export class SaleUseCases {
         throw new ValidationAppError('Edita los productos antes de cancelar la venta');
       }
 
-      if (itemChangesRequested && sale.closureDetails.length > 0) {
+      if (itemChangesRequested && currentSale.closureDetails.length > 0) {
         throw new ValidationAppError('No se pueden editar productos de una venta incluida en un cierre de caja');
       }
 
       const itemUpdate = input.items && itemChangesRequested
-        ? await this.replaceSaleItems(tx, { ...sale, branchId: sale.branchId! }, input.items)
+        ? await this.replaceSaleItems(tx, { ...currentSale, branchId: currentSale.branchId! }, input.items)
         : undefined;
 
-      if (input.status === 'CANCELLED' && sale.status !== 'CANCELLED') {
+      if (input.status === 'CANCELLED' && currentSale.status !== 'CANCELLED') {
         const details = await tx.saleDetail.findMany({ where: { saleId: id } });
         for (const detail of details) {
           await this.inventory.increment(tx, {
-            tenantId: sale.tenantId,
+            tenantId: currentSale.tenantId,
             poolId: detail.inventoryPoolId!,
             productId: detail.storeId,
             quantity: detail.quantity
@@ -123,7 +133,7 @@ export class SaleUseCases {
 
         for (const detail of details) {
           await this.inventory.decrementFromPool(tx, {
-            tenantId: sale.tenantId,
+            tenantId: currentSale.tenantId,
             poolId: detail.inventoryPoolId!,
             productId: detail.storeId,
             quantity: detail.quantity,
@@ -132,9 +142,9 @@ export class SaleUseCases {
         }
       }
 
-      const amount = input.amount ? new Prisma.Decimal(input.amount) : sale.amount;
-      const amountCash = input.amountCash ? new Prisma.Decimal(input.amountCash) : sale.amountCash;
-      const amountTransfer = input.amountTransfer ? new Prisma.Decimal(input.amountTransfer) : sale.amountTransfer;
+      const amount = input.amount ? new Prisma.Decimal(input.amount) : currentSale.amount;
+      const amountCash = input.amountCash ? new Prisma.Decimal(input.amountCash) : currentSale.amountCash;
+      const amountTransfer = input.amountTransfer ? new Prisma.Decimal(input.amountTransfer) : currentSale.amountTransfer;
 
       if (amountCash.plus(amountTransfer).greaterThan(amount)) {
         throw new ValidationAppError('El efectivo y transferencia superan el monto total');
@@ -167,12 +177,12 @@ export class SaleUseCases {
           ...(itemUpdate ? { perfumeCount: itemUpdate.perfumeCount } : {}),
           ...(input.status ? {
             status: input.status,
-            finalizedAt: input.status === 'FINALIZED' ? new Date() : sale.finalizedAt,
+            finalizedAt: input.status === 'FINALIZED' ? new Date() : currentSale.finalizedAt,
             cancelledAt: input.status === 'CANCELLED'
               ? new Date()
               : isReopeningCancelled
                 ? null
-                : sale.cancelledAt
+                : currentSale.cancelledAt
           } : {})
         },
         include: this.saleIncludes()
@@ -187,10 +197,20 @@ export class SaleUseCases {
     this.assertCanAccessSale(actor, sale, 'delete');
 
     await this.prisma.$transaction(async (tx) => {
-      if (sale.status !== 'CANCELLED') {
-        for (const detail of sale.details) {
+      await tx.$queryRaw`SELECT pg_advisory_xact_lock(hashtextextended(${id}, 0)) IS NULL AS locked`;
+      const currentSale = await tx.sale.findFirst({
+        where: { id, tenantId: actor.tenantId, branchId, deletedAt: null },
+        include: { details: true, closureDetails: true }
+      });
+      if (!currentSale) throw new NotFoundError('Venta no encontrada');
+      if (currentSale.closureDetails.length) {
+        throw new ValidationAppError('No se puede eliminar una venta incluida en un cierre de caja');
+      }
+
+      if (currentSale.status !== 'CANCELLED') {
+        for (const detail of currentSale.details) {
           await this.inventory.increment(tx, {
-            tenantId: sale.tenantId,
+            tenantId: currentSale.tenantId,
             poolId: detail.inventoryPoolId!,
             productId: detail.storeId,
             quantity: detail.quantity
@@ -203,6 +223,42 @@ export class SaleUseCases {
         data: { deletedAt: new Date() }
       });
     });
+  }
+
+  private assertStatusTransition(current: SaleStatus, next: SaleStatus | undefined, hasClosure: boolean) {
+    if (!next || next === current) return;
+    if (hasClosure) {
+      throw new ValidationAppError('No se puede cambiar el estado de una venta incluida en un cierre de caja');
+    }
+    if (current === 'FINALIZED') {
+      throw new ValidationAppError('Una venta finalizada no puede volver a un estado operativo');
+    }
+  }
+
+  private async assertUpdatedParticipants(
+    tx: Prisma.TransactionClient,
+    sale: { tenantId: string; branchId: string | null; employeeId: string; messengerId: string | null; sellerId: string | null },
+    input: UpdateSaleInput
+  ) {
+    if (!sale.branchId) throw new ValidationAppError('La venta no tiene una sucursal asignada');
+    const ids = [...new Set([
+      input.employeeId ?? sale.employeeId,
+      input.messengerId === undefined ? sale.messengerId : input.messengerId,
+      input.sellerId === undefined ? sale.sellerId : input.sellerId
+    ].filter((id): id is string => Boolean(id)))];
+    const users = await tx.user.findMany({
+      where: {
+        id: { in: ids },
+        tenantId: sale.tenantId,
+        status: 'ACTIVE',
+        deletedAt: null,
+        branchMemberships: { some: { tenantId: sale.tenantId, branchId: sale.branchId } }
+      },
+      select: { id: true }
+    });
+    if (users.length !== ids.length) {
+      throw new ValidationAppError('Todo el personal de la venta debe estar activo y asignado a la sucursal');
+    }
   }
 
   private async findActive(id: string, tenantId: string, branchId: string) {

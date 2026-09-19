@@ -39,6 +39,7 @@ describeDb('branch inventory isolation and reversible sales', () => {
   afterAll(async () => {
     await prisma.saleDetail.deleteMany({ where: { tenantId } });
     await prisma.sale.deleteMany({ where: { tenantId } });
+    await prisma.branchProductExclusion.deleteMany({ where: { tenantId } });
     await prisma.branchInventoryProductOverride.deleteMany({ where: { tenantId } });
     await prisma.inventoryPoolStock.deleteMany({ where: { tenantId } });
     await prisma.branchMembership.deleteMany({ where: { tenantId } });
@@ -82,6 +83,33 @@ describeDb('branch inventory isolation and reversible sales', () => {
     await branches.configureInventorySharing(actor, emptyBranch.id, { mode: 'FULL', sourceBranchId: branchA.id });
     const shared = await stores.list(tenantId, emptyBranch.id, { page: 1, pageSize: 20 });
     expect(shared.items.map((item) => item.id)).toEqual([productId]);
+  });
+
+  it('restores stock only once when cancellation requests race', async () => {
+    const createSale = new CreateSaleUseCase(prisma);
+    const sales = new SaleUseCases(prisma);
+    const before = await balance(branchA.defaultInventoryPoolId!);
+    const sale = await createSale.execute(actor.id, tenantId, branchA.id, {
+      amount: '100', amountCash: '100', amountTransfer: '0', deliveryPay: '0', items: [{ productId, quantity: 1 }]
+    });
+
+    await Promise.all([
+      sales.update(sale.id, actor, branchA.id, { status: 'CANCELLED' }),
+      sales.update(sale.id, actor, branchA.id, { status: 'CANCELLED' })
+    ]);
+
+    expect(await balance(branchA.defaultInventoryPoolId!)).toBe(before);
+  });
+
+  it('hides a product only in the selected branch', async () => {
+    const stores = new StoreUseCases(prisma);
+    await stores.softDelete(productId, tenantId, branchB.id);
+
+    expect((await stores.list(tenantId, branchA.id, { page: 1, pageSize: 20 })).items).toHaveLength(1);
+    expect((await stores.list(tenantId, branchB.id, { page: 1, pageSize: 20 })).items).toHaveLength(0);
+
+    await stores.restore(productId, tenantId, branchB.id);
+    expect((await stores.list(tenantId, branchB.id, { page: 1, pageSize: 20 })).items).toHaveLength(1);
   });
 });
 

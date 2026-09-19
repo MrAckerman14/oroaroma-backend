@@ -56,6 +56,24 @@ const supervisorActor: AuthenticatedUser = {
 };
 
 describe('ReportUseCases', () => {
+  it('limita los pendientes del cierre al tenant y la sucursal', async () => {
+    const findMany = vi.fn().mockResolvedValue([]);
+    const reports = new ReportUseCases({ sale: { findMany } } as unknown as PrismaClient);
+    const pendingTotals = (reports as unknown as {
+      pendingTotalsForClosure: (tx: unknown, actor: AuthenticatedUser, range: unknown) => Promise<unknown>;
+    }).pendingTotalsForClosure.bind(reports);
+
+    await pendingTotals({ sale: { findMany } }, admin, {
+      from: new Date('2026-09-01'),
+      to: new Date('2026-09-02'),
+      branchId: 'branch-1'
+    });
+
+    expect(findMany).toHaveBeenCalledWith(expect.objectContaining({
+      where: expect.objectContaining({ tenantId: 'default', branchId: 'branch-1' })
+    }));
+  });
+
   it('suma el dinero ganado por mensajero con ventas finalizadas y canceladas', async () => {
     const reports = new ReportUseCases({} as PrismaClient);
     const cashSummary = (reports as unknown as {

@@ -2,6 +2,7 @@ import cors from '@fastify/cors';
 import helmet from '@fastify/helmet';
 import jwt from '@fastify/jwt';
 import multipart from '@fastify/multipart';
+import rateLimit from '@fastify/rate-limit';
 import fastifyStatic from '@fastify/static';
 import swagger from '@fastify/swagger';
 import swaggerUi from '@fastify/swagger-ui';
@@ -38,13 +39,14 @@ export async function buildApp() {
       callback(null, corsOrigins.includes(origin.replace(/\/+$/, '')));
     },
     methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
-    allowedHeaders: ['Authorization', 'Content-Type', 'Accept'],
+      allowedHeaders: ['Authorization', 'Content-Type', 'Accept', 'X-Branch-Id'],
     credentials: true,
     exposedHeaders: ['Authorization']
   });
   await app.register(jwt, {
     secret: env.JWT_SECRET
   });
+  await app.register(rateLimit, { global: false });
   await app.register(multipart, {
     limits: {
       fileSize: env.UPLOAD_MAX_IMAGE_SIZE_MB * 1024 * 1024,

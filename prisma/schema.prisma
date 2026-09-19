@@ -84,6 +84,7 @@ model Tenant {
   inventoryPools         InventoryPool[]
   inventoryStocks        InventoryPoolStock[]
   inventoryOverrides     BranchInventoryProductOverride[]
+  productExclusions      BranchProductExclusion[]
 
   @@index([status])
 }
@@ -139,6 +140,7 @@ model Branch {
   memberships          BranchMembership[]
   defaultInventoryPool InventoryPool?                   @relation("BranchDefaultInventoryPool", fields: [defaultInventoryPoolId], references: [id], onDelete: Restrict)
   inventoryOverrides   BranchInventoryProductOverride[]
+  productExclusions    BranchProductExclusion[]
   sales                Sale[]
   cashClosures         CashClosure[]
   inventoryReports     InventoryReport[]
@@ -202,6 +204,21 @@ model BranchInventoryProductOverride {
 
   @@unique([branchId, productId])
   @@index([tenantId, poolId])
+}
+
+model BranchProductExclusion {
+  id        String   @id @default(uuid())
+  tenantId  String
+  branchId  String
+  productId String
+  createdAt DateTime @default(now())
+
+  tenant  Tenant @relation(fields: [tenantId], references: [id], onDelete: Restrict)
+  branch  Branch @relation(fields: [branchId], references: [id], onDelete: Cascade)
+  product Store  @relation(fields: [productId], references: [id], onDelete: Cascade)
+
+  @@unique([branchId, productId])
+  @@index([tenantId, productId])
 }
 
 model BranchMembership {
@@ -324,6 +341,7 @@ model Store {
   inventoryDetails   InventoryReportDetail[]
   inventoryStocks    InventoryPoolStock[]
   inventoryOverrides BranchInventoryProductOverride[]
+  branchExclusions   BranchProductExclusion[]
 
   @@index([tenantId])
   @@index([tenantId, name])

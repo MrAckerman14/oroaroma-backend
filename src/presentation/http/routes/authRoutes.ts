@@ -15,7 +15,7 @@ import type { AuthSession } from '../../../types/auth.js';
 export async function authRoutes(app: FastifyInstance) {
   const users = new UserUseCases(app.container.prisma, app.container.passwordHasher);
 
-  app.post('/auth/login', async (request, reply) => {
+  app.post('/auth/login', { config: { rateLimit: { max: 5, timeWindow: '1 minute' } } }, async (request, reply) => {
     const input = loginSchema.parse(request.body);
     const account = await app.container.users.findRawUserByEmailAcrossTenants(input.email);
     const tenantId = account?.tenantId ?? '__invalid_tenant__';
@@ -47,7 +47,7 @@ export async function authRoutes(app: FastifyInstance) {
     });
   });
 
-  app.post('/auth/refresh', async (request) => {
+  app.post('/auth/refresh', { config: { rateLimit: { max: 10, timeWindow: '1 minute' } } }, async (request) => {
     const input = refreshTokenSchema.parse(request.body);
     const session = await app.container.auth.login.refresh(input.refreshToken);
     return publicSession(session);
@@ -108,6 +108,9 @@ function publicAuthUser(user: AuthenticatedUser) {
     role: primaryRole,
     roleName: primaryRole,
     roleLabel: primaryRole,
-    roleDisplayName: primaryRole
+    roleDisplayName: primaryRole,
+    roles: user.roles,
+    permissions: user.permissions,
+    branches: user.branches ?? []
   };
 }

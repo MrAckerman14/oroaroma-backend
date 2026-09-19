@@ -77,6 +77,7 @@ describeDb('tenant SQL isolation', () => {
   it('rechaza una venta que cruza empleado y vendedor de tenants diferentes', async () => {
     const employee = await createUser(tenantA, 'employee');
     const seller = await createUser(tenantB, 'seller');
+    await prisma.branchMembership.create({ data: { tenantId: tenantA, branchId: branchA.id, userId: employee.id } });
 
     await expect(prisma.sale.create({
       data: {
@@ -91,11 +92,12 @@ describeDb('tenant SQL isolation', () => {
         deliveryPay: '0.00',
         perfumeCount: 1
       }
-    })).rejects.toThrow(/tenant boundary/i);
+    })).rejects.toThrow(/scope mismatch|tenant boundary/i);
   });
 
   it('rechaza detalles de venta con producto de otro tenant', async () => {
     const employee = await createUser(tenantA, 'detail-employee');
+    await prisma.branchMembership.create({ data: { tenantId: tenantA, branchId: branchA.id, userId: employee.id } });
     const store = await prisma.store.create({
       data: {
         tenantId: tenantB,
@@ -129,7 +131,7 @@ describeDb('tenant SQL isolation', () => {
         unitPrice: '20.00',
         purchaseUnitPrice: '10.00'
       }
-    })).rejects.toThrow(/tenant boundary/i);
+    })).rejects.toThrow(/tenant mismatch|tenant boundary/i);
   });
 });
 

@@ -108,7 +108,31 @@ export class BranchUseCases {
       if (input.mode === 'SELECTIVE') {
         const products = await tx.store.findMany({ where: { tenantId: actor.tenantId, id: { in: input.productIds! }, deletedAt: null }, select: { id: true } });
         if (products.length !== new Set(input.productIds).size) throw new ValidationAppError('Uno de los productos no pertenece a esta empresa');
-        await tx.branchInventoryProductOverride.createMany({ data: products.map((product) => ({ tenantId: actor.tenantId, branchId: id, productId: product.id, poolId: source!.defaultInventoryPoolId! })) });
+        const excludedProducts = await tx.branchProductExclusion.count({
+          where: { tenantId: actor.tenantId, branchId: source!.id, productId: { in: products.map((product) => product.id) } }
+        });
+        if (excludedProducts) throw new ValidationAppError('Uno de los productos no está visible en la sucursal origen');
+        const sourceOverrides = await tx.branchInventoryProductOverride.findMany({
+          where: { tenantId: actor.tenantId, branchId: source!.id, productId: { in: products.map((product) => product.id) } },
+          select: { productId: true, poolId: true }
+        });
+        const sourcePoolByProduct = new Map(sourceOverrides.map((override) => [override.productId, override.poolId]));
+        const mappings = products.map((product) => ({
+          tenantId: actor.tenantId,
+          branchId: id,
+          productId: product.id,
+          poolId: sourcePoolByProduct.get(product.id) ?? source!.defaultInventoryPoolId!
+        }));
+        const availableBalances = await tx.inventoryPoolStock.count({
+          where: {
+            tenantId: actor.tenantId,
+            OR: mappings.map((mapping) => ({ poolId: mapping.poolId, productId: mapping.productId }))
+          }
+        });
+        if (availableBalances !== mappings.length) {
+          throw new ValidationAppError('Uno de los productos no está disponible en el inventario de la sucursal origen');
+        }
+        await tx.branchInventoryProductOverride.createMany({ data: mappings });
       }
     });
     return this.inventorySharing(actor, id);

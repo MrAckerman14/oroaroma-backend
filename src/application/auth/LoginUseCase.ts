@@ -82,10 +82,21 @@ export class LoginUseCase {
     }
 
     const user = this.users.toAuthenticatedUser(session.user);
+    const nextRefreshToken = await this.prisma.$transaction(async (tx) => {
+      const revoked = await tx.refreshSession.updateMany({
+        where: { id: session.id, revokedAt: null },
+        data: { revokedAt: new Date() }
+      });
+      if (revoked.count !== 1) throw new UnauthorizedError('Token de refresco ya utilizado');
+      return this.createRefreshSession(user.id, user.tenantId, {
+        ...(session.userAgent ? { userAgent: session.userAgent } : {}),
+        ...(session.ipAddress ? { ipAddress: session.ipAddress } : {})
+      }, tx);
+    });
 
     return {
       accessToken: this.createAccessToken(user),
-      refreshToken,
+      refreshToken: nextRefreshToken,
       user
     };
   }

@@ -52,9 +52,10 @@ export class StoreUseCases {
     const where: Prisma.StoreWhereInput = {
       tenantId,
       ...(options.includeDeleted ? {} : { deletedAt: null }),
-      ...(stockFilter ? { stock: stockFilter } : {}),
+      ...(!branchId && stockFilter ? { stock: stockFilter } : {}),
       ...(searchFilter ? searchFilter : {}),
       ...(branchVisibility ? {
+        branchExclusions: { none: { tenantId, branchId: branchVisibility.branchId } },
         OR: [
           { inventoryStocks: { some: { poolId: branchVisibility.poolId } } },
           { inventoryOverrides: { some: { branchId: branchVisibility.branchId } } }
@@ -62,7 +63,7 @@ export class StoreUseCases {
       } : {})
     };
 
-    if (!this.hasExplicitSoldRange(options)) {
+    if (!this.hasExplicitSoldRange(options) && !(branchId && stockFilter)) {
       const [stores, total] = await Promise.all([
         this.prisma.store.findMany({
           where,
@@ -117,6 +118,8 @@ export class StoreUseCases {
         totalSold: soldQuantities.get(store.id) ?? 0,
         soldCount: soldQuantities.get(store.id) ?? 0
       }))
+      .filter((store) => options.minStock === undefined || store.stock >= options.minStock)
+      .filter((store) => options.maxStock === undefined || store.stock <= options.maxStock)
       .sort((a, b) => {
         if (this.hasExplicitSoldRange(options) && b.quantitySold !== a.quantitySold) {
           return b.quantitySold - a.quantitySold;
@@ -219,30 +222,30 @@ export class StoreUseCases {
     });
   }
 
-  async softDelete(id: string, tenantId: string) {
+  async softDelete(id: string, tenantId: string, branchId: string) {
     await this.findActive(id, tenantId);
-    await this.prisma.store.update({
-      where: { id },
-      data: { deletedAt: new Date() }
+    await this.assertVisibleInBranch(id, tenantId, branchId);
+    await this.prisma.branchProductExclusion.upsert({
+      where: { branchId_productId: { branchId, productId: id } },
+      update: {},
+      create: { tenantId, branchId, productId: id }
     });
   }
 
-  async restore(id: string, tenantId: string) {
+  async restore(id: string, tenantId: string, branchId: string) {
     const store = await this.prisma.store.findFirst({ where: { id, tenantId } });
     if (!store) throw new NotFoundError('Producto no encontrado');
-
-    return this.prisma.store.update({
-      where: { id },
-      data: { deletedAt: null }
-    });
+    await this.prisma.branchProductExclusion.deleteMany({ where: { tenantId, branchId, productId: id } });
+    return store;
   }
 
-  async replaceImage(id: string, tenantId: string, file: UploadFileInput) {
+  async replaceImage(id: string, tenantId: string, branchId: string, file: UploadFileInput) {
     if (!this.storage) {
       throw new ValidationAppError('El almacenamiento de imagenes no esta configurado');
     }
 
     const store = await this.findActive(id, tenantId);
+    await this.assertVisibleInBranch(id, tenantId, branchId);
     const savedFile = await this.storage.saveProductImage(file);
 
     const updatedStore = await this.prisma.store.update({
@@ -260,8 +263,9 @@ export class StoreUseCases {
     };
   }
 
-  async imageDownload(id: string, tenantId: string) {
+  async imageDownload(id: string, tenantId: string, branchId: string) {
     const store = await this.findActive(id, tenantId);
+    await this.assertVisibleInBranch(id, tenantId, branchId);
     if (!store.imagePath) {
       throw new NotFoundError('Este producto no tiene imagen');
     }
@@ -273,41 +277,9 @@ export class StoreUseCases {
     };
   }
 
-  async listImages(tenantId: string, options: StoreListOptions = {}) {
-    const stockFilter = this.stockFilter(options);
-    const searchFilter = this.searchFilter(options.search);
-    const stores = await this.prisma.store.findMany({
-      where: {
-        tenantId,
-        deletedAt: null,
-        imagePath: { not: null },
-        ...(stockFilter ? { stock: stockFilter } : {}),
-        ...(searchFilter ? searchFilter : {})
-      },
-      select: {
-        id: true,
-        name: true,
-        imagePath: true
-      },
-      orderBy: { name: 'asc' }
-    });
-
-    if (!this.hasExplicitSoldRange(options)) return stores;
-
-    const soldQuantities = await this.soldQuantitiesForStores(
-      stores.map((store) => store.id),
-      options
-    );
-
-    return stores
-      .map((store) => ({
-        ...store,
-        quantitySold: soldQuantities.get(store.id) ?? 0
-      }))
-      .sort((a, b) => {
-        if (b.quantitySold !== a.quantitySold) return b.quantitySold - a.quantitySold;
-        return a.name.localeCompare(b.name);
-      });
+  async listImages(tenantId: string, branchId: string, options: StoreListOptions = {}) {
+    const result = await this.list(tenantId, branchId, { page: 1, pageSize: 5000 }, options);
+    return result.items.filter((store) => Boolean(store.imagePath));
   }
 
   private async findActive(id: string, tenantId: string) {
@@ -326,6 +298,10 @@ export class StoreUseCases {
   }
 
   private async assertVisibleInBranch(productId: string, tenantId: string, branchId: string) {
+    const excluded = await this.prisma.branchProductExclusion.findFirst({
+      where: { tenantId, branchId, productId }, select: { id: true }
+    });
+    if (excluded) throw new NotFoundError('Producto no encontrado en la sucursal activa');
     const visibility = await this.branchProductVisibility(tenantId, branchId);
     const stock = await this.prisma.inventoryPoolStock.findFirst({
       where: {
