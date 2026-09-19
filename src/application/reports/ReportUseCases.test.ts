@@ -56,6 +56,35 @@ const supervisorActor: AuthenticatedUser = {
 };
 
 describe('ReportUseCases', () => {
+  it('solo permite cerrar un pendiente como verificado o anulado', async () => {
+    const findFirst = vi.fn().mockResolvedValue({ id: 'closure-1', status: 'PENDING' });
+    const update = vi.fn().mockResolvedValue({ id: 'closure-1', status: 'VERIFIED', creator: null });
+    const reports = new ReportUseCases({ cashClosure: { findFirst, update } } as unknown as PrismaClient);
+
+    await reports.updateClosureStatus(admin, 'closure-1', 'branch-1', 'VERIFIED');
+    expect(update).toHaveBeenCalledWith(expect.objectContaining({ data: { status: 'VERIFIED' } }));
+
+    findFirst.mockResolvedValueOnce({ id: 'closure-1', status: 'VERIFIED' });
+    await expect(reports.updateClosureStatus(admin, 'closure-1', 'branch-1', 'PENDING'))
+      .rejects.toMatchObject({ message: 'El cierre solo puede verificarse o anularse mientras está pendiente' });
+  });
+
+  it('libera las ventas al eliminar un cierre pendiente', async () => {
+    const deleteMany = vi.fn().mockResolvedValue({ count: 2 });
+    const update = vi.fn().mockResolvedValue({});
+    const tx = { cashClosureDetail: { deleteMany }, cashClosure: { update } };
+    const prisma = {
+      cashClosure: { findFirst: vi.fn().mockResolvedValue({ id: 'closure-1', status: 'PENDING' }) },
+      $transaction: vi.fn(async (callback: (client: typeof tx) => Promise<void>) => callback(tx))
+    };
+    const reports = new ReportUseCases(prisma as unknown as PrismaClient);
+
+    await reports.softDeleteClosure(admin, 'closure-1', 'branch-1');
+
+    expect(deleteMany).toHaveBeenCalledWith({ where: { closureId: 'closure-1', tenantId: 'default' } });
+    expect(update).toHaveBeenCalledWith(expect.objectContaining({ where: { id: 'closure-1' } }));
+  });
+
   it('limita los pendientes del cierre al tenant y la sucursal', async () => {
     const findMany = vi.fn().mockResolvedValue([]);
     const reports = new ReportUseCases({ sale: { findMany } } as unknown as PrismaClient);

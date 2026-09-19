@@ -590,6 +590,9 @@ export class ReportUseCases {
   async updateClosureStatus(actor: AuthenticatedUser, id: string, branchId: string, status: CashClosureStatus) {
     const closure = await this.prisma.cashClosure.findFirst({ where: { id, tenantId: actor.tenantId, branchId, deletedAt: null } });
     if (!closure) throw new NotFoundError('Cierre no encontrado');
+    if (closure.status !== 'PENDING' || status === 'PENDING') {
+      throw new ValidationAppError('El cierre solo puede verificarse o anularse mientras está pendiente');
+    }
 
     return this.prisma.cashClosure.update({
       where: { id },
@@ -615,10 +618,16 @@ export class ReportUseCases {
   async softDeleteClosure(actor: AuthenticatedUser, id: string, branchId: string) {
     const closure = await this.prisma.cashClosure.findFirst({ where: { id, tenantId: actor.tenantId, branchId, deletedAt: null } });
     if (!closure) throw new NotFoundError('Cierre no encontrado');
+    if (closure.status !== 'PENDING') {
+      throw new ValidationAppError('Solo se pueden eliminar cierres pendientes');
+    }
 
-    await this.prisma.cashClosure.update({
-      where: { id },
-      data: { deletedAt: new Date() }
+    await this.prisma.$transaction(async (tx) => {
+      await tx.cashClosureDetail.deleteMany({ where: { closureId: id, tenantId: actor.tenantId } });
+      await tx.cashClosure.update({
+        where: { id },
+        data: { deletedAt: new Date() }
+      });
     });
   }
 

@@ -113,11 +113,15 @@ export class TenantUseCases {
       throw new ValidationAppError('La configuracion contiene modulos desconocidos');
     }
 
-    await this.prisma.$transaction(modules.map((module) => this.prisma.tenantModuleSetting.upsert({
-      where: { tenantId_moduleKey: { tenantId: id, moduleKey: module.key } },
-      update: { enabled: module.enabled },
-      create: { tenantId: id, moduleKey: module.key, enabled: module.enabled }
-    })));
+    await this.prisma.$transaction(async (tx) => {
+      for (const module of modules) {
+        await tx.tenantModuleSetting.upsert({
+          where: { tenantId_moduleKey: { tenantId: id, moduleKey: module.key } },
+          update: { enabled: module.enabled },
+          create: { tenantId: id, moduleKey: module.key, enabled: module.enabled }
+        });
+      }
+    });
 
     return this.prisma.tenantModuleSetting.findMany({ where: { tenantId: id }, orderBy: { moduleKey: 'asc' } });
   }

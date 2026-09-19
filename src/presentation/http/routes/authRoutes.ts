@@ -13,6 +13,7 @@ import type { AuthenticatedUser } from '../../../types/rbac.js';
 import type { AuthSession } from '../../../types/auth.js';
 import { UnauthorizedError } from '../../../shared/errors/AppError.js';
 import { enterTenantDatabaseContext } from '../../../infrastructure/database/prisma.js';
+import { env } from '../../../config/env.js';
 
 const refreshCookieName = 'refresh_token';
 
@@ -110,9 +111,9 @@ export function refreshCookieOptions() {
   return {
     path: '/auth',
     httpOnly: true,
-    sameSite: 'strict' as const,
+    sameSite: process.env.NODE_ENV === 'production' ? 'none' as const : 'strict' as const,
     secure: process.env.NODE_ENV === 'production',
-    maxAge: 30 * 24 * 60 * 60
+    maxAge: env.REFRESH_TOKEN_EXPIRES_DAYS * 24 * 60 * 60
   };
 }
 

@@ -4,7 +4,6 @@ import { ForbiddenError, ValidationAppError } from '../../../shared/errors/AppEr
 import { StoreUseCases } from '../../../application/stores/StoreUseCases.js';
 import type { UploadFileInput } from '../../../application/files/StorageService.js';
 import { buildZipArchive, type ZipFileInput } from '../../../shared/utils/zip.js';
-import { canonicalRoleKey, hasRoleKey } from '../../../shared/utils/roleKeys.js';
 import { idParamsSchema } from '../schemas/commonSchemas.js';
 import { createStoreSchema, storeListQuerySchema, updateStoreSchema } from '../schemas/storeSchemas.js';
 
@@ -16,9 +15,12 @@ export async function storeRoutes(app: FastifyInstance) {
     { preHandler: [app.authenticate, app.requireTenantModule('inventory'), canReadStores] },
     async (request) => {
       const query = storeListQuerySchema.parse(request.query);
+      if (query.includeExcluded === true && !hasStoreCapability(request.authUser!, 'restore')) {
+        throw new ForbiddenError('Permiso requerido para consultar productos ocultos');
+      }
       return {
         data: await stores.list(request.authUser!.tenantId, request.branchId, query, {
-          includeSensitivePrices: canReadSensitiveStorePrices(request.authUser!),
+          includeSensitivePrices: hasStoreCapability(request.authUser!, 'update'),
           from: query.from,
           to: query.to,
           minStock: query.minStock,
@@ -102,7 +104,7 @@ export async function storeRoutes(app: FastifyInstance) {
     async (request) => {
       const params = idParamsSchema.parse(request.params);
       return {
-        data: await stores.findById(params.id, request.authUser!.tenantId, request.branchId, canReadSensitiveStorePrices(request.authUser!))
+        data: await stores.findById(params.id, request.authUser!.tenantId, request.branchId, hasStoreCapability(request.authUser!, 'update'))
       };
     }
   );
@@ -193,52 +195,20 @@ function safeFileName(value: string) {
 
 async function canReadStores(request: FastifyRequest) {
   const actor = request.authUser;
-  const readableRoles = new Set([
-    'admin',
-    'administrator',
-    'administrador',
-    'employee',
-    'empleado',
-    'collaborator',
-    'colaborador',
-    'supervisor',
-    'vendedor'
-  ]);
-  const roleKeys = actor?.roles.map((role) => canonicalRoleKey(role.roleKey)) ?? [];
   const canReadByPermission = actor?.permissions.some((permission) => {
     return permission.resource === 'stores' && permission.action === 'read';
   }) ?? false;
-  let canReadByRole = roleKeys.some((role) => readableRoles.has(role));
-
-  if (!canReadByRole && actor?.id) {
-    const activeAssignments = await request.server.container.prisma.userRoleAssignment.findMany({
-      where: {
-        userId: actor.id,
-        OR: [{ expiresAt: null }, { expiresAt: { gt: new Date() } }]
-      },
-      select: {
-        role: {
-          select: {
-            key: true,
-            name: true
-          }
-        }
-      }
-    });
-
-    canReadByRole = activeAssignments.some((assignment) => {
-      return readableRoles.has(canonicalRoleKey(assignment.role.key))
-        || readableRoles.has(assignment.role.name.toLowerCase());
-    });
-  }
-
-  if (!canReadByPermission && !canReadByRole) {
+  if (!canReadByPermission) {
     throw new ForbiddenError('Permiso requerido para leer productos');
   }
 }
 
-function canReadSensitiveStorePrices(actor: NonNullable<FastifyRequest['authUser']>) {
-  return actor.roles.some((role) => hasRoleKey(role.roleKey, ['admin']));
+function hasStoreCapability(actor: NonNullable<FastifyRequest['authUser']>, action: string) {
+  return actor.permissions.some((permission) => (
+    permission.resource === 'stores'
+      && permission.action === action
+      && permission.scope === 'global'
+  ));
 }
 
 async function parseCreateStoreRequest(request: FastifyRequest) {

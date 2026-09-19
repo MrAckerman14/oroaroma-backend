@@ -17,6 +17,7 @@ import { registerCurrencyFormatHook } from './plugins/currencyFormatPlugin.js';
 import { registerErrorHandler } from './plugins/errorHandler.js';
 import { registerResponsePrivacyHook } from './plugins/responsePrivacyPlugin.js';
 import { registerRoutes } from './routes/index.js';
+import { runTenantDatabaseContext } from '../../infrastructure/database/prisma.js';
 
 export async function buildApp() {
   const app = Fastify({
@@ -27,6 +28,9 @@ export async function buildApp() {
   });
 
   registerErrorHandler(app);
+  app.addHook('onRequest', (_request, _reply, done) => {
+    runTenantDatabaseContext('__unauthenticated__', false, done);
+  });
 
   await app.register(helmet, {
     crossOriginResourcePolicy: { policy: 'cross-origin' }

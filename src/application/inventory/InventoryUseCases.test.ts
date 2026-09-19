@@ -40,14 +40,18 @@ describe('InventoryUseCases', () => {
     }));
   });
 
-  it('bloquea reportes de inventario a usuarios sin permiso global', async () => {
-    const inventory = new InventoryUseCases({} as PrismaClient);
+  it('limita reportes propios al usuario que los creó', async () => {
+    const findMany = vi.fn().mockResolvedValue([]);
+    const count = vi.fn().mockResolvedValue(0);
+    const inventory = new InventoryUseCases({ inventoryReport: { findMany, count } } as unknown as PrismaClient);
 
-    await expect(inventory.list(employee, {
+    await inventory.list(employee, {
       page: 1,
       pageSize: 10
-    })).rejects.toMatchObject({
-      message: 'Permiso requerido para leer reportes de inventario'
     });
+
+    expect(findMany).toHaveBeenCalledWith(expect.objectContaining({
+      where: expect.objectContaining({ tenantId: 'default', createdById: employee.id })
+    }));
   });
 });

@@ -142,13 +142,14 @@ export class InventoryUseCases {
     const range = dateRangeOrCurrentDay(input);
     const createdAt = buildCreatedAtFilter(range);
     const canGlobal = this.canReadGlobalInventoryReports(actor);
-    if (!canGlobal) {
+    if (!this.canReadInventoryReports(actor)) {
       throw new ForbiddenError('Permiso requerido para leer reportes de inventario');
     }
 
     const where = {
       tenantId: actor.tenantId,
       ...(branchId ? { branchId } : {}),
+      ...(!canGlobal ? { createdById: actor.id } : {}),
       deletedAt: null,
       ...(createdAt ? { createdAt } : {})
     };
@@ -172,13 +173,14 @@ export class InventoryUseCases {
 
   async detail(id: string, actor: AuthenticatedUser, input: InventoryDetailInput, branchId?: string) {
     const canGlobal = this.canReadGlobalInventoryReports(actor);
-    if (!canGlobal) {
+    if (!this.canReadInventoryReports(actor)) {
       throw new ForbiddenError('Permiso requerido para leer reportes de inventario');
     }
     const where = {
       id,
       tenantId: actor.tenantId,
       ...(branchId ? { branchId } : {}),
+      ...(!canGlobal ? { createdById: actor.id } : {}),
       deletedAt: null
     };
     const [report, details, totalDetails] = await Promise.all([
@@ -296,7 +298,7 @@ export class InventoryUseCases {
 
   async legacyDetail(id: string, actor: AuthenticatedUser) {
     const canGlobal = this.canReadGlobalInventoryReports(actor);
-    if (!canGlobal) {
+    if (!this.canReadInventoryReports(actor)) {
       throw new ForbiddenError('Permiso requerido para leer reportes de inventario');
     }
 
@@ -304,6 +306,7 @@ export class InventoryUseCases {
       where: {
         id,
         tenantId: actor.tenantId,
+        ...(!canGlobal ? { createdById: actor.id } : {}),
         deletedAt: null
       },
       include: {
@@ -328,6 +331,14 @@ export class InventoryUseCases {
     return actor.permissions.some((permission) => {
       return permission.key === 'inventory-reports:read:global';
     });
+  }
+
+  private canReadInventoryReports(actor: AuthenticatedUser) {
+    return actor.permissions.some((permission) => (
+      permission.resource === 'inventory-reports'
+        && permission.action === 'read'
+        && (permission.scope === 'global' || permission.scope === 'own')
+    ));
   }
 
   private paginated<T>(items: T[], total: number, pagination: { page: number; pageSize: number }) {

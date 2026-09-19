@@ -21,9 +21,17 @@ export function enterTenantDatabaseContext(tenantId: string, platformAdmin = fal
   tenantContext.enterWith({ tenantId, platformAdmin });
 }
 
+export function runTenantDatabaseContext<T>(
+  tenantId: string,
+  platformAdmin: boolean,
+  callback: () => T
+) {
+  return tenantContext.run({ tenantId, platformAdmin }, callback);
+}
+
 export async function assertRuntimeDatabaseRole() {
   if (!env.REQUIRE_DATABASE_RLS_ROLE) return;
-  const [role] = await basePrisma.$queryRaw<Array<{ bypassRls: boolean; ownsProtectedTables: boolean; missingRls: boolean }>>`
+  const [role] = await basePrisma.$queryRaw<Array<{ bypassRls: boolean; ownsProtectedTables: boolean; missingRls: boolean; missingTablePrivileges: boolean; missingSequencePrivileges: boolean; missingFunctionPrivileges: boolean }>>`
     SELECT
       r.rolbypassrls AS "bypassRls",
       EXISTS (
@@ -39,11 +47,27 @@ export async function assertRuntimeDatabaseRole() {
             SELECT 1 FROM pg_attribute a
             WHERE a.attrelid = c.oid AND a.attname = 'tenantId' AND NOT a.attisdropped
           )
-      ) AS "missingRls"
+      ) AS "missingRls",
+      EXISTS (
+        SELECT 1 FROM pg_class c JOIN pg_namespace n ON n.oid = c.relnamespace
+        WHERE n.nspname = 'public' AND c.relkind = 'r' AND c.relname <> '_prisma_migrations'
+          AND NOT has_table_privilege(current_user, c.oid, 'SELECT,INSERT,UPDATE,DELETE')
+      ) AS "missingTablePrivileges",
+      EXISTS (
+        SELECT 1 FROM pg_class c JOIN pg_namespace n ON n.oid = c.relnamespace
+        WHERE n.nspname = 'public' AND c.relkind = 'S'
+          AND NOT has_sequence_privilege(current_user, c.oid, 'USAGE,SELECT')
+      ) AS "missingSequencePrivileges",
+      NOT (
+        has_function_privilege(current_user, 'public.resolve_login_tenant(text)', 'EXECUTE')
+        AND has_function_privilege(current_user, 'public.resolve_refresh_tenant(text)', 'EXECUTE')
+        AND has_function_privilege(current_user, 'public.can_access_tenant(text)', 'EXECUTE')
+      ) AS "missingFunctionPrivileges"
     FROM pg_roles r WHERE r.rolname = current_user
   `;
-  if (!role || role.bypassRls || role.ownsProtectedTables || role.missingRls) {
-    throw new Error('DATABASE_RUNTIME_URL debe usar un rol no propietario, sin BYPASSRLS y con RLS habilitada');
+  if (!role || role.bypassRls || role.ownsProtectedTables || role.missingRls
+    || role.missingTablePrivileges || role.missingSequencePrivileges || role.missingFunctionPrivileges) {
+    throw new Error('DATABASE_RUNTIME_URL no cumple los requisitos de aislamiento y privilegios de ejecución');
   }
 }
 
