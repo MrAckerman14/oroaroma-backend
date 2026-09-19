@@ -16,7 +16,7 @@ export async function reportRoutes(app: FastifyInstance) {
     { preHandler: [app.authenticate, app.authorize('reports', 'cash')] },
     async (request) => {
       const query = dateRangeQuerySchema.parse(request.query);
-      return { data: await reports.cashReconciliation(request.authUser!, { ...query, branchId: request.branchId! }) };
+      return { data: await reports.cashReconciliation(request.authUser!, { ...query, branchId: request.branchId }) };
     }
   );
 
@@ -26,7 +26,7 @@ export async function reportRoutes(app: FastifyInstance) {
     async (request) => {
       const query = dateRangeQuerySchema.parse(request.query);
       const body = createCashClosureSchema.parse(request.body ?? {});
-      return { data: await reports.cashReconciliation(request.authUser!, { ...query, ...body, branchId: request.branchId! }) };
+      return { data: await reports.cashReconciliation(request.authUser!, { ...query, ...body, branchId: request.branchId }) };
     }
   );
 
@@ -36,7 +36,7 @@ export async function reportRoutes(app: FastifyInstance) {
     async (request, reply) => {
       const query = dateRangeQuerySchema.parse(request.query);
       const body = createCashClosureSchema.parse(request.body ?? {});
-      const closure = await reports.createCashClosure(request.authUser!, { ...query, ...body, branchId: request.branchId! });
+      const closure = await reports.createCashClosure(request.authUser!, { ...query, ...body, branchId: request.branchId });
       return reply.status(201).send({ data: closure });
     }
   );
@@ -46,7 +46,7 @@ export async function reportRoutes(app: FastifyInstance) {
     { preHandler: [app.authenticate, app.authorize('cash-closures', 'read')] },
     async (request) => {
       const query = dateRangePaginationQuerySchema.parse(request.query);
-      return { data: await reports.listClosures(request.authUser!, query, request.branchId!) };
+      return { data: await reports.listClosures(request.authUser!, query, request.branchId) };
     }
   );
 
@@ -56,7 +56,7 @@ export async function reportRoutes(app: FastifyInstance) {
     async (request) => {
       const params = idParamsSchema.parse(request.params);
       const query = paginationQuerySchema.parse(request.query);
-      return { data: await reports.closureDetails(request.authUser!, params.id, query, request.branchId!) };
+      return { data: await reports.closureDetails(request.authUser!, params.id, query, request.branchId) };
     }
   );
 

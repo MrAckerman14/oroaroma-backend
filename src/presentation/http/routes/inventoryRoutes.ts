@@ -14,7 +14,7 @@ export async function inventoryRoutes(app: FastifyInstance) {
     async (request) => {
       requireGlobalInventoryReportAccess(request.authUser!);
       const query = paginationQuerySchema.parse(request.query);
-      return { data: await inventory.review(request.authUser!, request.branchId!, query) };
+      return { data: await inventory.review(request.authUser!, request.branchId, query) };
     }
   );
 
@@ -24,7 +24,7 @@ export async function inventoryRoutes(app: FastifyInstance) {
     async (request) => {
       requireGlobalInventoryReportAccess(request.authUser!);
       const query = paginationQuerySchema.parse(request.query);
-      return { data: await inventory.review(request.authUser!, request.branchId!, query) };
+      return { data: await inventory.review(request.authUser!, request.branchId, query) };
     }
   );
 
@@ -34,7 +34,7 @@ export async function inventoryRoutes(app: FastifyInstance) {
     async (request, reply) => {
       const query = dateRangeQuerySchema.parse(request.query);
       const body = createInventoryReportSchema.parse(request.body ?? {});
-      const report = await inventory.save(request.authUser!, request.branchId!, { ...query, ...body });
+      const report = await inventory.save(request.authUser!, request.branchId, { ...query, ...body });
       return reply.status(201).send({ data: report });
     }
   );
@@ -45,7 +45,7 @@ export async function inventoryRoutes(app: FastifyInstance) {
     async (request) => {
       requireGlobalInventoryReportAccess(request.authUser!);
       const query = dateRangePaginationQuerySchema.parse(request.query);
-      return { data: await inventory.list(request.authUser!, request.branchId!, query) };
+      return { data: await inventory.list(request.authUser!, request.branchId, query) };
     }
   );
 
@@ -56,7 +56,7 @@ export async function inventoryRoutes(app: FastifyInstance) {
       requireGlobalInventoryReportAccess(request.authUser!);
       const params = idParamsSchema.parse(request.params);
       const query = paginationQuerySchema.parse(request.query);
-      return { data: await inventory.detail(params.id, request.authUser!, query, request.branchId!) };
+      return { data: await inventory.detail(params.id, request.authUser!, query, request.branchId) };
     }
   );
 
@@ -65,7 +65,7 @@ export async function inventoryRoutes(app: FastifyInstance) {
     { preHandler: [app.authenticate, app.authorize('inventory-reports', 'delete')] },
     async (request, reply) => {
       const params = idParamsSchema.parse(request.params);
-      await inventory.softDelete(params.id, request.authUser!, request.branchId!);
+      await inventory.softDelete(params.id, request.authUser!, request.branchId);
       return reply.status(204).send();
     }
   );
@@ -76,7 +76,7 @@ export async function inventoryRoutes(app: FastifyInstance) {
     async (request) => {
       const params = idParamsSchema.parse(request.params);
       const input = updateInventoryReportSchema.parse(request.body);
-      return { data: await inventory.update(params.id, request.authUser!, input, request.branchId!) };
+      return { data: await inventory.update(params.id, request.authUser!, input, request.branchId) };
     }
   );
 }
