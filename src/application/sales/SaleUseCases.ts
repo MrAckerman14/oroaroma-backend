@@ -85,6 +85,7 @@ export class SaleUseCases {
         && input.status !== 'CANCELLED';
 
       this.assertStatusTransition(currentSale.status, input.status, currentSale.closureDetails.length > 0);
+      this.assertParticipantReassignmentAllowed(actor, currentSale, input);
       await this.assertUpdatedParticipants(tx, currentSale, input);
 
       if (isReopeningCancelled && !isAdmin) {
@@ -242,10 +243,11 @@ export class SaleUseCases {
   ) {
     if (!sale.branchId) throw new ValidationAppError('La venta no tiene una sucursal asignada');
     const ids = [...new Set([
-      input.employeeId ?? sale.employeeId,
-      input.messengerId === undefined ? sale.messengerId : input.messengerId,
-      input.sellerId === undefined ? sale.sellerId : input.sellerId
+      input.employeeId !== undefined && input.employeeId !== sale.employeeId ? input.employeeId : null,
+      input.messengerId !== undefined && input.messengerId !== sale.messengerId ? input.messengerId : null,
+      input.sellerId !== undefined && input.sellerId !== sale.sellerId ? input.sellerId : null
     ].filter((id): id is string => Boolean(id)))];
+    if (!ids.length) return;
     const users = await tx.user.findMany({
       where: {
         id: { in: ids },
@@ -258,6 +260,23 @@ export class SaleUseCases {
     });
     if (users.length !== ids.length) {
       throw new ValidationAppError('Todo el personal de la venta debe estar activo y asignado a la sucursal');
+    }
+  }
+
+  private assertParticipantReassignmentAllowed(
+    actor: AuthenticatedUser,
+    sale: { employeeId: string; messengerId: string | null; sellerId: string | null },
+    input: UpdateSaleInput
+  ) {
+    const changesParticipant = (
+      (input.employeeId !== undefined && input.employeeId !== sale.employeeId)
+      || (input.messengerId !== undefined && input.messengerId !== sale.messengerId)
+      || (input.sellerId !== undefined && input.sellerId !== sale.sellerId)
+    );
+    if (!changesParticipant) return;
+    const canUpdateGlobally = actor.permissions.some((permission) => permission.key === 'sales:update:global');
+    if (!canUpdateGlobally) {
+      throw new ForbiddenError('Se requiere permiso global para reasignar el personal de una venta');
     }
   }
 

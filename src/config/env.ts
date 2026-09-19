@@ -13,6 +13,7 @@ const envSchema = z.object({
     z.string().min(1).optional()
   ),
   REQUIRE_DATABASE_RLS_ROLE: booleanEnv('false'),
+  TRUST_PROXY: booleanEnv('false'),
   PORT: z.coerce.number().int().positive().default(3000),
   HOST: z.string().default('0.0.0.0'),
   NODE_ENV: z.enum(['development', 'test', 'production']).default('development'),

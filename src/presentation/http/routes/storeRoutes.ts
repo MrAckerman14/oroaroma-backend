@@ -23,7 +23,8 @@ export async function storeRoutes(app: FastifyInstance) {
           to: query.to,
           minStock: query.minStock,
           maxStock: query.maxStock,
-          search: query.search
+          search: query.search,
+          includeExcluded: query.includeExcluded === true
         })
       };
     }

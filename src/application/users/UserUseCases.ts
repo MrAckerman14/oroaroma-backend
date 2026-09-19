@@ -64,9 +64,10 @@ export class UserUseCases {
   ) {}
 
   async create(tenantId: string, input: CreateUserInput) {
+    const email = input.email.trim().toLowerCase();
     const passwordHash = await this.passwordHasher.hash(input.password);
     const existingUser = await this.prisma.user.findFirst({
-      where: { email: input.email, tenantId },
+      where: { email: { equals: email, mode: 'insensitive' } },
       include: {
         roleAssignments: { include: { role: true } }
       }
@@ -82,6 +83,10 @@ export class UserUseCases {
           roles: roleNames
         }
       });
+    }
+
+    if (existingUser?.deletedAt && existingUser.tenantId !== tenantId) {
+      throw new ConflictError('Ese correo ya pertenece a otra empresa');
     }
 
     if (existingUser?.deletedAt) {
@@ -113,7 +118,7 @@ export class UserUseCases {
       data: {
         tenantId,
         name: input.name,
-        email: input.email,
+        email,
         passwordHash,
         phone: input.phone ?? null,
         profileImagePath: input.profileImagePath ?? null,
@@ -380,13 +385,21 @@ export class UserUseCases {
 
   async update(id: string, actor: AuthenticatedUser, input: UpdateUserInput) {
     await this.findById(id, actor.tenantId);
+    const email = input.email?.trim().toLowerCase();
+    if (email) {
+      const duplicate = await this.prisma.user.findFirst({
+        where: { id: { not: id }, email: { equals: email, mode: 'insensitive' } },
+        select: { id: true }
+      });
+      if (duplicate) throw new ConflictError('Ese correo ya pertenece a otro usuario');
+    }
     const passwordHash = input.password ? await this.passwordHasher.hash(input.password) : undefined;
 
     const user = await this.prisma.user.update({
       where: { id },
       data: {
         ...(input.name ? { name: input.name } : {}),
-        ...(input.email ? { email: input.email } : {}),
+        ...(email ? { email } : {}),
         ...(input.status ? { status: input.status } : {}),
         ...(input.phone !== undefined ? { phone: input.phone } : {}),
         ...(input.profileImagePath !== undefined ? { profileImagePath: input.profileImagePath } : {}),

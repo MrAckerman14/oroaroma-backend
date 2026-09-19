@@ -26,5 +26,5 @@ export const changePasswordSchema = z.object({
 });
 
 export const refreshTokenSchema = z.object({
-  refreshToken: z.string().min(32)
+  refreshToken: z.string().min(32).optional()
 });

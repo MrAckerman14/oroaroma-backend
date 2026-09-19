@@ -28,6 +28,13 @@ export class PrismaUserRepository {
     });
   }
 
+  async resolveTenantIdByEmail(email: string) {
+    const rows = await this.prisma.$queryRaw<Array<{ tenantId: string }>>`
+      SELECT public.resolve_login_tenant(${email.trim().toLowerCase()}) AS "tenantId"
+    `;
+    return rows[0]?.tenantId ?? null;
+  }
+
   findRawUserById(id: string, tenantId: string) {
     return this.prisma.user.findFirst({
       where: { id, tenantId, deletedAt: null, tenant: { status: 'ACTIVE' } },

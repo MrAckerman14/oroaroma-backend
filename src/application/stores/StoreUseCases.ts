@@ -20,6 +20,7 @@ export interface PaginationInput {
 
 export interface StoreListOptions {
   includeDeleted?: boolean | undefined;
+  includeExcluded?: boolean | undefined;
   includeSensitivePrices?: boolean | undefined;
   from?: string | undefined;
   to?: string | undefined;
@@ -55,7 +56,9 @@ export class StoreUseCases {
       ...(!branchId && stockFilter ? { stock: stockFilter } : {}),
       ...(searchFilter ? searchFilter : {}),
       ...(branchVisibility ? {
-        branchExclusions: { none: { tenantId, branchId: branchVisibility.branchId } },
+        ...(!options.includeExcluded ? {
+          branchExclusions: { none: { tenantId, branchId: branchVisibility.branchId } }
+        } : {}),
         OR: [
           { inventoryStocks: { some: { poolId: branchVisibility.poolId } } },
           { inventoryOverrides: { some: { branchId: branchVisibility.branchId } } }
@@ -80,9 +83,11 @@ export class StoreUseCases {
         branchId
       );
       const stocks = branchId ? await this.stockByProduct(tenantId, branchId, stores.map((store) => store.id)) : new Map(stores.map((store) => [store.id, store.stock]));
+      const excludedIds = await this.excludedProductIds(tenantId, branchId, stores.map((store) => store.id), options.includeExcluded === true);
 
       const items = stores.map((store) => ({
         ...store,
+        ...(options.includeExcluded ? { excludedFromBranch: excludedIds.has(store.id) } : {}),
         stock: stocks.get(store.id) ?? 0,
         quantitySold: soldQuantities.get(store.id) ?? 0,
         soldQuantity: soldQuantities.get(store.id) ?? 0,
@@ -108,10 +113,12 @@ export class StoreUseCases {
       branchId
     );
     const stocks = branchId ? await this.stockByProduct(tenantId, branchId, stores.map((store) => store.id)) : new Map(stores.map((store) => [store.id, store.stock]));
+    const excludedIds = await this.excludedProductIds(tenantId, branchId, stores.map((store) => store.id), options.includeExcluded === true);
 
     const enriched = stores
       .map((store) => ({
         ...store,
+        ...(options.includeExcluded ? { excludedFromBranch: excludedIds.has(store.id) } : {}),
         stock: stocks.get(store.id) ?? 0,
         quantitySold: soldQuantities.get(store.id) ?? 0,
         soldQuantity: soldQuantities.get(store.id) ?? 0,
@@ -332,6 +339,7 @@ export class StoreUseCases {
     createdAt?: Date;
     updatedAt?: Date;
     deletedAt?: Date | null;
+    excludedFromBranch?: boolean;
   }>(store: T, includeSensitivePrices: boolean) {
     if (includeSensitivePrices) {
       return store;
@@ -344,11 +352,21 @@ export class StoreUseCases {
       stock: store.stock,
       imagePath: store.imagePath,
       salePrice: store.salePrice,
+      ...(store.excludedFromBranch !== undefined ? { excludedFromBranch: store.excludedFromBranch } : {}),
       quantitySold: store.quantitySold ?? 0,
       soldQuantity: store.soldQuantity ?? store.quantitySold ?? 0,
       totalSold: store.totalSold ?? store.quantitySold ?? 0,
       soldCount: store.soldCount ?? store.quantitySold ?? 0
     };
+  }
+
+  private async excludedProductIds(tenantId: string, branchId: string | undefined, productIds: string[], includeExcluded: boolean) {
+    if (!branchId || !includeExcluded || !productIds.length) return new Set<string>();
+    const exclusions = await this.prisma.branchProductExclusion.findMany({
+      where: { tenantId, branchId, productId: { in: productIds } },
+      select: { productId: true }
+    });
+    return new Set(exclusions.map((exclusion) => exclusion.productId));
   }
 
   private stockFilter(options: StoreListOptions) {

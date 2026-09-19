@@ -1,14 +1,29 @@
 import { PrismaClient } from '@prisma/client';
+import { AsyncLocalStorage } from 'node:async_hooks';
 import { env } from '../../config/env.js';
 
-export const prisma = new PrismaClient({
+interface TenantDatabaseContext {
+  tenantId: string;
+  platformAdmin: boolean;
+}
+
+const tenantContext = new AsyncLocalStorage<TenantDatabaseContext>();
+const basePrisma = new PrismaClient({
   ...(env.DATABASE_RUNTIME_URL ? { datasourceUrl: env.DATABASE_RUNTIME_URL } : {}),
   log: process.env.NODE_ENV === 'development' ? ['query', 'error', 'warn'] : ['error']
 });
 
+export const prisma = env.REQUIRE_DATABASE_RLS_ROLE
+  ? tenantAwareClient(basePrisma)
+  : basePrisma;
+
+export function enterTenantDatabaseContext(tenantId: string, platformAdmin = false) {
+  tenantContext.enterWith({ tenantId, platformAdmin });
+}
+
 export async function assertRuntimeDatabaseRole() {
   if (!env.REQUIRE_DATABASE_RLS_ROLE) return;
-  const [role] = await prisma.$queryRaw<Array<{ bypassRls: boolean; ownsProtectedTables: boolean; missingRls: boolean }>>`
+  const [role] = await basePrisma.$queryRaw<Array<{ bypassRls: boolean; ownsProtectedTables: boolean; missingRls: boolean }>>`
     SELECT
       r.rolbypassrls AS "bypassRls",
       EXISTS (
@@ -30,4 +45,73 @@ export async function assertRuntimeDatabaseRole() {
   if (!role || role.bypassRls || role.ownsProtectedTables || role.missingRls) {
     throw new Error('DATABASE_RUNTIME_URL debe usar un rol no propietario, sin BYPASSRLS y con RLS habilitada');
   }
+}
+
+export function tenantAwareClient(client: PrismaClient): PrismaClient {
+  const delegateCache = new Map<PropertyKey, object>();
+
+  return new Proxy(client, {
+    get(target, property, receiver) {
+      if (property === '$transaction') {
+        return async (callback: (tx: Parameters<Parameters<PrismaClient['$transaction']>[0]>[0]) => Promise<unknown>, options?: object) => {
+          const context = tenantContext.getStore();
+          if (!context || typeof callback !== 'function') {
+            const transaction = Reflect.get(target, property, receiver) as (...args: unknown[]) => Promise<unknown>;
+            return transaction.call(target, callback, options);
+          }
+          return target.$transaction(async (tx) => {
+            await setDatabaseContext(tx, context);
+            return callback(tx);
+          }, options);
+        };
+      }
+
+      const value = Reflect.get(target, property, receiver) as unknown;
+      if (!isPrismaDelegate(value)) {
+        if (typeof value !== 'function') return value;
+        return (...args: unknown[]) => {
+          const result: unknown = Reflect.apply(value, target, args);
+          return result;
+        };
+      }
+      const cached = delegateCache.get(property);
+      if (cached) return cached;
+
+      const delegate = new Proxy(value, {
+        get(delegateTarget, operation) {
+          const method = Reflect.get(delegateTarget, operation) as unknown;
+          if (typeof method !== 'function') return method;
+          return async (...args: unknown[]) => {
+            const context = tenantContext.getStore();
+            if (!context) {
+              const result: unknown = Reflect.apply(method, delegateTarget, args);
+              return result;
+            }
+            return client.$transaction(async (tx) => {
+              await setDatabaseContext(tx, context);
+              const transactionDelegate = Reflect.get(tx, property) as object;
+              const transactionMethod = Reflect.get(transactionDelegate, operation) as (...values: unknown[]) => unknown;
+              return Reflect.apply(transactionMethod, transactionDelegate, args);
+            });
+          };
+        }
+      });
+      delegateCache.set(property, delegate);
+      return delegate;
+    }
+  });
+}
+
+async function setDatabaseContext(
+  tx: Parameters<Parameters<PrismaClient['$transaction']>[0]>[0],
+  context: TenantDatabaseContext
+) {
+  await tx.$executeRaw`SELECT set_config('app.tenant_id', ${context.tenantId}, true)`;
+  await tx.$executeRaw`SELECT set_config('app.platform_admin', ${context.platformAdmin ? 'true' : 'false'}, true)`;
+}
+
+function isPrismaDelegate(value: unknown): value is object {
+  return typeof value === 'object'
+    && value !== null
+    && typeof Reflect.get(value, 'findMany') === 'function';
 }

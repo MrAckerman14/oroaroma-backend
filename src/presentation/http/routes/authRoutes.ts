@@ -1,4 +1,4 @@
-import type { FastifyInstance } from 'fastify';
+import type { FastifyInstance, FastifyReply, FastifyRequest } from 'fastify';
 import { UserUseCases } from '../../../application/users/UserUseCases.js';
 import {
   changePasswordSchema,
@@ -11,25 +11,31 @@ import { canonicalRoleKey } from '../../../shared/utils/roleKeys.js';
 import { roleLabels } from '../../../shared/utils/spanishLabels.js';
 import type { AuthenticatedUser } from '../../../types/rbac.js';
 import type { AuthSession } from '../../../types/auth.js';
+import { UnauthorizedError } from '../../../shared/errors/AppError.js';
+import { enterTenantDatabaseContext } from '../../../infrastructure/database/prisma.js';
+
+const refreshCookieName = 'refresh_token';
 
 export async function authRoutes(app: FastifyInstance) {
   const users = new UserUseCases(app.container.prisma, app.container.passwordHasher);
 
   app.post('/auth/login', { config: { rateLimit: { max: 5, timeWindow: '1 minute' } } }, async (request, reply) => {
     const input = loginSchema.parse(request.body);
-    const account = await app.container.users.findRawUserByEmailAcrossTenants(input.email);
-    const tenantId = account?.tenantId ?? '__invalid_tenant__';
+    const tenantId = await app.container.users.resolveTenantIdByEmail(input.email) ?? '__invalid_tenant__';
+    enterTenantDatabaseContext(tenantId);
     const session = await app.container.auth.login.execute(input, {
       tenantId,
       ...(request.headers['user-agent'] ? { userAgent: request.headers['user-agent'] } : {}),
       ipAddress: request.ip
     });
 
+    setRefreshCookie(reply, session.refreshToken);
     return reply.send(publicSession(session));
   });
 
-  app.post('/auth/register', async (request, reply) => {
+  app.post('/auth/register', { config: { rateLimit: { max: 3, timeWindow: '1 hour' } } }, async (request, reply) => {
     const input = registerSchema.parse(request.body);
+    enterTenantDatabaseContext('default');
 
     const user = await users.create('default', {
       name: input.name,
@@ -47,15 +53,17 @@ export async function authRoutes(app: FastifyInstance) {
     });
   });
 
-  app.post('/auth/refresh', { config: { rateLimit: { max: 10, timeWindow: '1 minute' } } }, async (request) => {
-    const input = refreshTokenSchema.parse(request.body);
-    const session = await app.container.auth.login.refresh(input.refreshToken);
+  app.post('/auth/refresh', { config: { rateLimit: { max: 10, timeWindow: '1 minute' } } }, async (request, reply) => {
+    const refreshToken = refreshTokenFrom(request);
+    const session = await app.container.auth.login.refresh(refreshToken);
+    setRefreshCookie(reply, session.refreshToken);
     return publicSession(session);
   });
 
   app.post('/auth/logout', async (request, reply) => {
-    const input = refreshTokenSchema.parse(request.body);
-    await app.container.auth.login.logout(input.refreshToken);
+    const refreshToken = refreshTokenFrom(request);
+    await app.container.auth.login.logout(refreshToken);
+    reply.clearCookie(refreshCookieName, refreshCookieOptions());
     return reply.status(204).send();
   });
 
@@ -80,10 +88,31 @@ export async function authRoutes(app: FastifyInstance) {
   });
 }
 
-function publicSession(session: AuthSession) {
+export function publicSession(session: AuthSession) {
   return {
-    ...session,
+    accessToken: session.accessToken,
     user: publicAuthUser(session.user)
+  };
+}
+
+function refreshTokenFrom(request: FastifyRequest) {
+  const input = refreshTokenSchema.parse(request.body ?? {});
+  const refreshToken = request.cookies[refreshCookieName] ?? input.refreshToken;
+  if (!refreshToken) throw new UnauthorizedError('Sesión de actualización no encontrada');
+  return refreshToken;
+}
+
+function setRefreshCookie(reply: FastifyReply, refreshToken: string) {
+  reply.setCookie(refreshCookieName, refreshToken, refreshCookieOptions());
+}
+
+export function refreshCookieOptions() {
+  return {
+    path: '/auth',
+    httpOnly: true,
+    sameSite: 'strict' as const,
+    secure: process.env.NODE_ENV === 'production',
+    maxAge: 30 * 24 * 60 * 60
   };
 }
 

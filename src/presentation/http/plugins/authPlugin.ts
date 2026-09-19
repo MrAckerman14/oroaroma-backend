@@ -3,7 +3,9 @@ import { env } from '../../../config/env.js';
 import { ForbiddenError, ModuleDisabledError, UnauthorizedError } from '../../../shared/errors/AppError.js';
 import { labelFromMap, permissionActionLabels, permissionResourceLabels } from '../../../shared/utils/spanishLabels.js';
 import type { AccessTokenPayload } from '../../../types/auth.js';
-import type { RbacAction, RbacResource } from '../../../types/rbac.js';
+import type { AuthenticatedUser, RbacAction, RbacResource } from '../../../types/rbac.js';
+import type { RbacPolicy } from '../../../domain/access/RbacPolicy.js';
+import { enterTenantDatabaseContext } from '../../../infrastructure/database/prisma.js';
 import type { PlatformPermissionKey, TenantModuleKey } from '../../../types/platform.js';
 
 export const authPlugin = fp(async (app) => {
@@ -22,10 +24,12 @@ export const authPlugin = fp(async (app) => {
     }
 
     const tenantId = payload.tenantId ?? env.DEFAULT_TENANT_ID;
+    enterTenantDatabaseContext(tenantId);
     const user = await app.container.users.findAuthenticatedById(payload.sub, tenantId);
     if (!user) {
       throw new UnauthorizedError('Usuario no encontrado');
     }
+    enterTenantDatabaseContext(user.tenantId);
 
     request.tenantId = user.tenantId;
     request.authUser = user;
@@ -63,15 +67,10 @@ export const authPlugin = fp(async (app) => {
         throw new ModuleDisabledError(moduleKey);
       }
 
-      const decision = app.container.rbacPolicy.can({
-        actor: request.authUser,
-        resource,
-        action,
-        ...(action === 'create' ? { ownerId: request.authUser.id } : {}),
-        ...(resource === 'branches' ? {
-          assignedUserIds: request.authUser.branches?.length ? [request.authUser.id] : []
-        } : {})
-      });
+      // Resource ownership is only known after the record is loaded. At route
+      // entry, require a matching capability and leave scope enforcement to the
+      // owning use case. Branch assignment is available here and remains strict.
+      const decision = canEnterResource(app.container.rbacPolicy, request.authUser, resource, action);
 
       if (!decision.allowed) {
         const resourceLabel = labelFromMap(permissionResourceLabels, resource) ?? resource;
@@ -87,6 +86,7 @@ export const authPlugin = fp(async (app) => {
       if (!(request.authUser.platformPermissions ?? []).includes(permission)) {
         throw new ForbiddenError('No tienes permisos de plataforma para realizar esta accion');
       }
+      enterTenantDatabaseContext(request.authUser.tenantId, true);
     };
   });
 
@@ -99,6 +99,30 @@ export const authPlugin = fp(async (app) => {
     };
   });
 });
+
+export function canEnterResource(
+  policy: Pick<RbacPolicy, 'can'>,
+  actor: AuthenticatedUser,
+  resource: RbacResource,
+  action: RbacAction
+) {
+  if (resource === 'branches') {
+    return policy.can({
+      actor,
+      resource,
+      action,
+      assignedUserIds: actor.branches?.length ? [actor.id] : []
+    });
+  }
+  if (action === 'create') {
+    return policy.can({ actor, resource, action, ownerId: actor.id });
+  }
+  return {
+    allowed: actor.permissions.some((permission) => (
+      permission.resource === resource && permission.action === action
+    ))
+  };
+}
 
 function moduleForResource(resource: RbacResource): TenantModuleKey | null {
   const modules: Partial<Record<RbacResource, TenantModuleKey>> = {

@@ -6,6 +6,7 @@ import { UnauthorizedError } from '../../shared/errors/AppError.js';
 import type { AuthSession, LoginInput } from '../../types/auth.js';
 import type { PasswordHasher } from '../../infrastructure/security/PasswordHasher.js';
 import type { PrismaUserRepository } from '../../infrastructure/repositories/PrismaUserRepository.js';
+import { enterTenantDatabaseContext } from '../../infrastructure/database/prisma.js';
 
 export class LoginUseCase {
   constructor(
@@ -21,6 +22,9 @@ export class LoginUseCase {
   ): Promise<AuthSession> {
     const rawUser = await this.users.findRawUserByEmail(input.email, options.tenantId);
     if (!rawUser || rawUser.status !== 'ACTIVE') {
+      // Keep unknown, inactive and wrong-password accounts on the same costly
+      // verification path to avoid exposing registered emails by timing.
+      await this.passwordHasher.hash(input.password);
       throw new UnauthorizedError('Credenciales invalidas');
     }
 
@@ -39,6 +43,7 @@ export class LoginUseCase {
 
   async refresh(refreshToken: string): Promise<AuthSession> {
     const tokenHash = this.hashRefreshToken(refreshToken);
+    await this.enterRefreshTenantContext(tokenHash);
     const session = await this.prisma.refreshSession.findUnique({
       where: { tokenHash },
       include: {
@@ -103,6 +108,7 @@ export class LoginUseCase {
 
   async logout(refreshToken: string): Promise<void> {
     const tokenHash = this.hashRefreshToken(refreshToken);
+    await this.enterRefreshTenantContext(tokenHash);
     await this.prisma.refreshSession.updateMany({
       where: {
         tokenHash,
@@ -146,5 +152,14 @@ export class LoginUseCase {
 
   private hashRefreshToken(refreshToken: string) {
     return crypto.createHash('sha256').update(refreshToken).digest('hex');
+  }
+
+  private async enterRefreshTenantContext(tokenHash: string) {
+    const tenantRows = await this.prisma.$queryRaw<Array<{ tenantId: string }>>`
+      SELECT public.resolve_refresh_tenant(${tokenHash}) AS "tenantId"
+    `;
+    const tenantId = tenantRows[0]?.tenantId;
+    if (!tenantId) throw new UnauthorizedError('Token de refresco invalido o expirado');
+    enterTenantDatabaseContext(tenantId);
   }
 }

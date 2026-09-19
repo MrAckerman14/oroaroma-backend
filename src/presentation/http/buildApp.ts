@@ -3,6 +3,7 @@ import helmet from '@fastify/helmet';
 import jwt from '@fastify/jwt';
 import multipart from '@fastify/multipart';
 import rateLimit from '@fastify/rate-limit';
+import cookie from '@fastify/cookie';
 import fastifyStatic from '@fastify/static';
 import swagger from '@fastify/swagger';
 import swaggerUi from '@fastify/swagger-ui';
@@ -19,6 +20,7 @@ import { registerRoutes } from './routes/index.js';
 
 export async function buildApp() {
   const app = Fastify({
+    trustProxy: env.TRUST_PROXY,
     logger: env.NODE_ENV === 'development'
       ? { transport: { target: 'pino-pretty' } }
       : true
@@ -46,6 +48,7 @@ export async function buildApp() {
   await app.register(jwt, {
     secret: env.JWT_SECRET
   });
+  await app.register(cookie);
   await app.register(rateLimit, { global: false });
   await app.register(multipart, {
     limits: {

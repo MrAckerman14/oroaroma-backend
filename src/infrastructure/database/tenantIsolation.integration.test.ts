@@ -1,6 +1,7 @@
 import { randomUUID } from 'node:crypto';
 import { PrismaClient } from '@prisma/client';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
+import { enterTenantDatabaseContext, tenantAwareClient } from './prisma.js';
 
 const describeDb = process.env.RUN_DB_TESTS === 'true' ? describe : describe.skip;
 
@@ -13,6 +14,7 @@ let branchB: { id: string; defaultInventoryPoolId: string | null };
 
 describeDb('tenant SQL isolation', () => {
   beforeAll(async () => {
+    await ensureRuntimeRoleForTest();
     await prisma.tenant.createMany({
       data: [
         { id: tenantA, slug: tenantA, name: 'Tenant A' },
@@ -53,6 +55,44 @@ describeDb('tenant SQL isolation', () => {
     });
 
     expect(rows[0]?.tenant_id).toBe(tenantA);
+  });
+
+  it('propaga automaticamente el tenant a transacciones de la API', async () => {
+    const tenantPrisma = tenantAwareClient(prisma);
+    enterTenantDatabaseContext(tenantA);
+    const rows = await tenantPrisma.$transaction((tx) => (
+      tx.$queryRaw<Array<{ tenant_id: string }>>`SELECT public.current_tenant_id() AS tenant_id`
+    ));
+    expect(rows[0]?.tenant_id).toBe(tenantA);
+  });
+
+  it('el rol runtime no puede leer otro tenant mediante RLS', async () => {
+    const visibleTenantIds = await prisma.$transaction(async (tx) => {
+      await tx.$executeRawUnsafe('SET LOCAL ROLE oroaroma_runtime');
+      await tx.$executeRaw`SELECT set_config('app.tenant_id', ${tenantA}, true)`;
+      const rows = await tx.tenant.findMany({
+        where: { id: { in: [tenantA, tenantB] } },
+        select: { id: true },
+        orderBy: { id: 'asc' }
+      });
+      return rows.map((row) => row.id);
+    });
+    expect(visibleTenantIds).toEqual([tenantA]);
+  });
+
+  it('el contexto de plataforma puede administrar múltiples tenants', async () => {
+    const tenantPrisma = tenantAwareClient(prisma);
+    enterTenantDatabaseContext(tenantA, true);
+    const visibleTenantIds = await tenantPrisma.$transaction(async (tx) => {
+      await tx.$executeRawUnsafe('SET LOCAL ROLE oroaroma_runtime');
+      const rows = await tx.tenant.findMany({
+        where: { id: { in: [tenantA, tenantB] } },
+        select: { id: true },
+        orderBy: { id: 'asc' }
+      });
+      return rows.map((row) => row.id);
+    });
+    expect(visibleTenantIds).toEqual([tenantA, tenantB].sort());
   });
 
   it('tiene politicas RLS para tablas tenant-owned', async () => {
@@ -147,4 +187,19 @@ async function createUser(tenantId: string, prefix: string) {
       status: 'ACTIVE'
     }
   });
+}
+
+async function ensureRuntimeRoleForTest() {
+  await prisma.$executeRawUnsafe(`
+    DO $$
+    BEGIN
+      IF NOT EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'oroaroma_runtime') THEN
+        CREATE ROLE oroaroma_runtime NOLOGIN NOSUPERUSER NOCREATEDB NOCREATEROLE NOINHERIT NOBYPASSRLS;
+      END IF;
+    END
+    $$
+  `);
+  await prisma.$executeRawUnsafe('GRANT USAGE ON SCHEMA public TO oroaroma_runtime');
+  await prisma.$executeRawUnsafe('GRANT SELECT, INSERT, UPDATE, DELETE ON ALL TABLES IN SCHEMA public TO oroaroma_runtime');
+  await prisma.$executeRawUnsafe('GRANT EXECUTE ON FUNCTION public.can_access_tenant(text) TO oroaroma_runtime');
 }

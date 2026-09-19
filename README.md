@@ -60,7 +60,9 @@ Variables recomendadas:
 DEFAULT_PAGE_SIZE=100
 ```
 
-Para que PostgreSQL aplique RLS como segunda barrera, usa `DATABASE_URL` exclusivamente para migraciones y configura `DATABASE_RUNTIME_URL` con un rol no propietario y sin `BYPASSRLS`. Activa `REQUIRE_DATABASE_RLS_ROLE=true` para impedir que la API arranque con privilegios inseguros.
+Para que PostgreSQL aplique RLS como segunda barrera, usa `DATABASE_URL` exclusivamente para migraciones y configura `DATABASE_RUNTIME_URL` con un login miembro de `oroaroma_runtime`, no propietario y sin `BYPASSRLS`. Activa `REQUIRE_DATABASE_RLS_ROLE=true`: la API fija `app.tenant_id` dentro de cada transacción y rechaza al arrancar roles propietarios, con `BYPASSRLS` o tablas tenant sin RLS.
+
+El rol se provisiona fuera de las migraciones para conservar compatibilidad con proveedores administrados: `psql -v DB_NAME=oroaroma_v2 -v RUNTIME_LOGIN=oroaroma_app -f ops/database/configure-runtime-role.sql`.
 
 Ejemplo para cargar hasta 1000 ventas en una pagina:
 

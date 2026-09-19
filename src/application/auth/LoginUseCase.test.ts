@@ -25,6 +25,7 @@ describe('LoginUseCase.refresh', () => {
       tenant: { status: 'ACTIVE' }
     };
     const prisma = {
+      $queryRaw: vi.fn(async () => [{ tenantId: 'default' }]),
       refreshSession: {
         findUnique: vi.fn(async () => ({
           id: 'refresh-session-1',
