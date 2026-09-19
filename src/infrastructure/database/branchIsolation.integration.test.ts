@@ -21,6 +21,7 @@ describeDb('branch tenant isolation', () => {
   afterAll(async () => {
     await prisma.branchMembership.deleteMany({ where: { tenantId: { in: [tenantA, tenantB] } } });
     await prisma.branch.deleteMany({ where: { tenantId: { in: [tenantA, tenantB] } } });
+    await prisma.inventoryPool.deleteMany({ where: { tenantId: { in: [tenantA, tenantB] } } });
     await prisma.user.deleteMany({ where: { tenantId: { in: [tenantA, tenantB] } } });
     await prisma.tenant.deleteMany({ where: { id: { in: [tenantA, tenantB] } } });
     await prisma.$disconnect();
@@ -28,7 +29,8 @@ describeDb('branch tenant isolation', () => {
   it('creates and lists branches only for the active tenant', async () => {
     const useCases = new BranchUseCases(prisma);
     await useCases.create(actor, { name: 'Centro', code: 'CENTRO' });
-    await prisma.branch.create({ data: { tenantId: tenantB, name: 'Norte', normalizedName: 'norte', code: 'NORTE' } });
+    const poolB = await prisma.inventoryPool.create({ data: { tenantId: tenantB, name: 'Norte', normalizedName: 'norte' } });
+    await prisma.branch.create({ data: { tenantId: tenantB, name: 'Norte', normalizedName: 'norte', code: 'NORTE', defaultInventoryPoolId: poolB.id } });
     expect(await useCases.list(actor)).toHaveLength(1);
   });
   it('rejects cross-tenant memberships at application and database levels', async () => {
