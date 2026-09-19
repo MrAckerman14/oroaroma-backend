@@ -154,7 +154,7 @@ export class UserUseCases {
     return this.paginated(items.map((item) => this.presentUser(item)), total, pagination);
   }
 
-  async listOptions(input: DashboardInput, actor?: AuthenticatedUser) {
+  async listOptions(input: DashboardInput, actor?: AuthenticatedUser, branchId?: string) {
     const range = dateRangeOrCurrentDay(input);
     const createdAt = buildCreatedAtFilter(range);
     const visibleRoleKeys = this.visibleOptionRoleKeys(actor);
@@ -172,6 +172,7 @@ export class UserUseCases {
       ...this.actorTenantWhere(actor),
       deletedAt: null,
       status: 'ACTIVE' as const,
+      ...(branchId ? { branchMemberships: { some: { branchId } } } : {}),
       ...(!isAdmin ? {
         OR: [
           {
@@ -271,7 +272,7 @@ export class UserUseCases {
     return this.paginated(presentedItems, presentedTotal, input);
   }
 
-  async dashboard(input: DashboardInput, actor?: AuthenticatedUser) {
+  async dashboard(input: DashboardInput, actor?: AuthenticatedUser, branchId?: string) {
     const range = dateRangeOrCurrentDay(input);
     const createdAt = buildCreatedAtFilter(range);
     const rangeDays = this.rangeDays(range);
@@ -279,6 +280,7 @@ export class UserUseCases {
     const where = {
       ...this.actorTenantWhere(actor),
       deletedAt: null,
+      ...(branchId ? { branchMemberships: { some: { branchId } } } : {}),
       ...(roleKeys ? {
         roleAssignments: {
           some: {

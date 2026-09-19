@@ -55,9 +55,11 @@ export class ExpenseUseCases {
     await this.prisma.expenseCategory.update({ where: { id }, data: { deletedAt: new Date() } });
   }
 
-  async list(actor: AuthenticatedUser, input: Range & Pagination) {
+  async list(actor: AuthenticatedUser, branchIdOrInput: string | (Range & Pagination), explicitInput?: Range & Pagination) {
+    const branchId = typeof branchIdOrInput === 'string' ? branchIdOrInput : undefined;
+    const input = typeof branchIdOrInput === 'string' ? explicitInput! : branchIdOrInput;
     const date = this.dateFilter(input);
-    const where = { tenantId: actor.tenantId, deletedAt: null, ...(date ? { date } : {}) };
+    const where = { tenantId: actor.tenantId, ...(branchId ? { branchId } : {}), deletedAt: null, ...(date ? { date } : {}) };
     const [items, total] = await Promise.all([
       this.prisma.expenseControl.findMany({
         where,
@@ -71,12 +73,15 @@ export class ExpenseUseCases {
     return this.paginated(items, total, input);
   }
 
-  async create(actor: AuthenticatedUser, input: CreateMovementInput) {
+  async create(actor: AuthenticatedUser, branchIdOrInput: string | CreateMovementInput, explicitInput?: CreateMovementInput) {
+    const branchId = typeof branchIdOrInput === 'string' ? branchIdOrInput : undefined;
+    const input = typeof branchIdOrInput === 'string' ? explicitInput! : branchIdOrInput;
     const category = await this.resolveCategory(actor, input);
     return this.prisma.$transaction(async (tx) => {
       const movement = await tx.expenseControl.create({
         data: {
           tenantId: actor.tenantId,
+          ...(branchId ? { branchId } : {}),
           amount: input.amount,
           type: input.type,
           categoryId: category.id,
@@ -91,8 +96,8 @@ export class ExpenseUseCases {
     });
   }
 
-  async update(actor: AuthenticatedUser, id: string, input: MovementInput) {
-    const current = await this.findMovement(actor, id);
+  async update(actor: AuthenticatedUser, id: string, input: MovementInput, branchId?: string) {
+    const current = await this.findMovement(actor, id, branchId);
     const category = input.categoryId || input.categoryName ? await this.resolveCategory(actor, input) : null;
     return this.prisma.$transaction(async (tx) => {
       const movement = await tx.expenseControl.update({
@@ -111,31 +116,36 @@ export class ExpenseUseCases {
     });
   }
 
-  async remove(actor: AuthenticatedUser, id: string) {
-    const current = await this.findMovement(actor, id);
+  async remove(actor: AuthenticatedUser, id: string, branchId?: string) {
+    const current = await this.findMovement(actor, id, branchId);
     await this.prisma.$transaction(async (tx) => {
       await tx.expenseControl.update({ where: { id: current.id }, data: { deletedAt: new Date() } });
       await this.audit(tx, actor, 'delete', 'expense-control', current.id);
     });
   }
 
-  async preview(actor: AuthenticatedUser, range: Range) {
+  async preview(actor: AuthenticatedUser, branchIdOrRange: string | Range, explicitRange?: Range) {
+    const branchId = typeof branchIdOrRange === 'string' ? branchIdOrRange : undefined;
+    const range = typeof branchIdOrRange === 'string' ? explicitRange! : branchIdOrRange;
     const date = this.dateFilter(range);
     const movements = await this.prisma.expenseControl.findMany({
-      where: { tenantId: actor.tenantId, deletedAt: null, ...(date ? { date } : {}) },
+      where: { tenantId: actor.tenantId, ...(branchId ? { branchId } : {}), deletedAt: null, ...(date ? { date } : {}) },
       select: { amount: true, type: true, category: { select: { name: true } } }
     });
     return this.summarize(movements, range);
   }
 
-  async createReport(actor: AuthenticatedUser, input: { name: string; note?: string | undefined; fromDate?: string | undefined; toDate?: string | undefined }) {
+  async createReport(actor: AuthenticatedUser, branchIdOrInput: string | { name: string; note?: string | undefined; fromDate?: string | undefined; toDate?: string | undefined }, explicitInput?: { name: string; note?: string | undefined; fromDate?: string | undefined; toDate?: string | undefined }) {
+    const branchId = typeof branchIdOrInput === 'string' ? branchIdOrInput : undefined;
+    const input = typeof branchIdOrInput === 'string' ? explicitInput! : branchIdOrInput;
     if (!input.fromDate || !input.toDate) throw new ValidationAppError('Las fechas desde y hasta son requeridas');
     const range = { from: input.fromDate, to: input.toDate };
-    const preview = await this.preview(actor, range);
+    const preview = branchId ? await this.preview(actor, branchId, range) : await this.preview(actor, range);
     return this.prisma.$transaction(async (tx) => {
       const report = await tx.expenseReport.create({
         data: {
           tenantId: actor.tenantId,
+          ...(branchId ? { branchId } : {}),
           name: input.name.trim(),
           note: input.note?.trim() || null,
           fromDate: this.dateOnly(range.from),
@@ -153,9 +163,11 @@ export class ExpenseUseCases {
     });
   }
 
-  async listReports(actor: AuthenticatedUser, input: Range & Pagination) {
+  async listReports(actor: AuthenticatedUser, branchIdOrInput: string | (Range & Pagination), explicitInput?: Range & Pagination) {
+    const branchId = typeof branchIdOrInput === 'string' ? branchIdOrInput : undefined;
+    const input = typeof branchIdOrInput === 'string' ? explicitInput! : branchIdOrInput;
     const createdAt = buildCreatedAtFilter(parseDateRange(input));
-    const where = { tenantId: actor.tenantId, deletedAt: null, ...(createdAt ? { createdAt } : {}) };
+    const where = { tenantId: actor.tenantId, ...(branchId ? { branchId } : {}), deletedAt: null, ...(createdAt ? { createdAt } : {}) };
     const [items, total] = await Promise.all([
       this.prisma.expenseReport.findMany({ where, include: { details: true }, orderBy: { createdAt: 'desc' }, skip: (input.page - 1) * input.pageSize, take: input.pageSize }),
       this.prisma.expenseReport.count({ where })
@@ -163,17 +175,17 @@ export class ExpenseUseCases {
     return this.paginated(items, total, input);
   }
 
-  async reportDetail(actor: AuthenticatedUser, id: string) {
+  async reportDetail(actor: AuthenticatedUser, id: string, branchId?: string) {
     const report = await this.prisma.expenseReport.findFirst({
-      where: { id, tenantId: actor.tenantId, deletedAt: null },
+      where: { id, tenantId: actor.tenantId, ...(branchId ? { branchId } : {}), deletedAt: null },
       include: { details: { orderBy: { categoryName: 'asc' } }, creator: { select: { id: true, name: true } } }
     });
     if (!report) throw new NotFoundError('Reporte de gastos no encontrado');
     return report;
   }
 
-  async updateReport(actor: AuthenticatedUser, id: string, input: { name?: string | undefined; note?: string | null | undefined }) {
-    await this.reportDetail(actor, id);
+  async updateReport(actor: AuthenticatedUser, id: string, input: { name?: string | undefined; note?: string | null | undefined }, branchId?: string) {
+    await this.reportDetail(actor, id, branchId);
     return this.prisma.expenseReport.update({
       where: { id },
       data: { ...(input.name ? { name: input.name.trim() } : {}), ...(input.note !== undefined ? { note: input.note?.trim() || null } : {}) },
@@ -181,13 +193,13 @@ export class ExpenseUseCases {
     });
   }
 
-  async removeReport(actor: AuthenticatedUser, id: string) {
-    await this.reportDetail(actor, id);
+  async removeReport(actor: AuthenticatedUser, id: string, branchId?: string) {
+    await this.reportDetail(actor, id, branchId);
     await this.prisma.expenseReport.update({ where: { id }, data: { deletedAt: new Date() } });
   }
 
-  private async findMovement(actor: AuthenticatedUser, id: string) {
-    const movement = await this.prisma.expenseControl.findFirst({ where: { id, tenantId: actor.tenantId, deletedAt: null } });
+  private async findMovement(actor: AuthenticatedUser, id: string, branchId?: string) {
+    const movement = await this.prisma.expenseControl.findFirst({ where: { id, tenantId: actor.tenantId, ...(branchId ? { branchId } : {}), deletedAt: null } });
     if (!movement) throw new NotFoundError('Movimiento no encontrado');
     return movement;
   }

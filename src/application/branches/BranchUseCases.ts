@@ -29,7 +29,13 @@ export class BranchUseCases {
     const duplicate = await this.prisma.branch.findFirst({ where: { tenantId: actor.tenantId, OR: [{ normalizedName }, { code }] } });
     if (duplicate) throw new ConflictError('Ya existe una sucursal con ese nombre o código');
     return this.prisma.$transaction(async (tx) => {
-      const branch = await tx.branch.create({ data: { tenantId: actor.tenantId, name: input.name.trim(), normalizedName, code, address: input.address?.trim() || null, phone: input.phone?.trim() || null } });
+      const branchId = crypto.randomUUID();
+      const pool = await tx.inventoryPool.create({
+        data: { tenantId: actor.tenantId, name: `Inventario ${input.name.trim()}`, normalizedName: `branch-${branchId}` }
+      });
+      const branch = await tx.branch.create({ data: { id: branchId, tenantId: actor.tenantId, name: input.name.trim(), normalizedName, code, address: input.address?.trim() || null, phone: input.phone?.trim() || null, defaultInventoryPoolId: pool.id } });
+      const products = await tx.store.findMany({ where: { tenantId: actor.tenantId, deletedAt: null }, select: { id: true } });
+      if (products.length) await tx.inventoryPoolStock.createMany({ data: products.map((product) => ({ tenantId: actor.tenantId, poolId: pool.id, productId: product.id, stock: 0 })) });
       await tx.branchMembership.upsert({
         where: { branchId_userId: { branchId: branch.id, userId: actor.id } },
         update: {},
@@ -75,6 +81,39 @@ export class BranchUseCases {
 
   async availableUsers(actor: AuthenticatedUser) {
     return this.prisma.user.findMany({ where: { tenantId: actor.tenantId, deletedAt: null, status: 'ACTIVE' }, orderBy: { name: 'asc' }, select: { id: true, name: true, email: true, roleAssignments: { include: { role: { select: { key: true, name: true } } } }, branchMemberships: { select: { branchId: true, isPrimary: true } } } });
+  }
+
+  async inventorySharing(actor: AuthenticatedUser, id: string) {
+    const branch = await this.find(actor, id);
+    const ownPool = await this.prisma.inventoryPool.findFirst({ where: { tenantId: actor.tenantId, normalizedName: `branch-${id}` } });
+    const overrides = await this.prisma.branchInventoryProductOverride.findMany({
+      where: { tenantId: actor.tenantId, branchId: id }, select: { productId: true, poolId: true }
+    });
+    const mode = overrides.length > 0 ? 'SELECTIVE' : branch.defaultInventoryPoolId !== ownPool?.id ? 'FULL' : 'INDEPENDENT';
+    return { mode, defaultInventoryPoolId: branch.defaultInventoryPoolId, products: overrides };
+  }
+
+  async configureInventorySharing(actor: AuthenticatedUser, id: string, input: { mode: 'INDEPENDENT' | 'FULL' | 'SELECTIVE'; sourceBranchId?: string | undefined; productIds?: string[] | undefined }) {
+    const branch = await this.find(actor, id);
+    const ownPool = await this.prisma.inventoryPool.findFirst({ where: { tenantId: actor.tenantId, normalizedName: `branch-${id}` } });
+    if (!ownPool) throw new ValidationAppError('No se encontró el inventario propio de la sucursal');
+    const source = input.sourceBranchId
+      ? await this.prisma.branch.findFirst({ where: { id: input.sourceBranchId, tenantId: actor.tenantId, status: 'ACTIVE' } })
+      : null;
+    if (input.mode !== 'INDEPENDENT' && (!source || source.id === branch.id || !source.defaultInventoryPoolId)) {
+      throw new ValidationAppError('Debes seleccionar otra sucursal activa como origen del inventario');
+    }
+    if (input.mode === 'SELECTIVE' && !input.productIds?.length) throw new ValidationAppError('Selecciona al menos un producto para compartir');
+    await this.prisma.$transaction(async (tx) => {
+      await tx.branchInventoryProductOverride.deleteMany({ where: { tenantId: actor.tenantId, branchId: id } });
+      await tx.branch.update({ where: { id }, data: { defaultInventoryPoolId: input.mode === 'FULL' ? source!.defaultInventoryPoolId : ownPool.id } });
+      if (input.mode === 'SELECTIVE') {
+        const products = await tx.store.findMany({ where: { tenantId: actor.tenantId, id: { in: input.productIds! }, deletedAt: null }, select: { id: true } });
+        if (products.length !== new Set(input.productIds).size) throw new ValidationAppError('Uno de los productos no pertenece a esta empresa');
+        await tx.branchInventoryProductOverride.createMany({ data: products.map((product) => ({ tenantId: actor.tenantId, branchId: id, productId: product.id, poolId: source!.defaultInventoryPoolId! })) });
+      }
+    });
+    return this.inventorySharing(actor, id);
   }
 
   private async find(actor: AuthenticatedUser, id: string) {

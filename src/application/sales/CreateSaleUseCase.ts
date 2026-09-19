@@ -2,11 +2,17 @@ import { Prisma, type PrismaClient } from '@prisma/client';
 import { ValidationAppError } from '../../shared/errors/AppError.js';
 import type { CreateSaleInput } from '../../types/sales.js';
 import { presentSale } from './salePresenter.js';
+import { InventoryStockService } from '../inventory/InventoryStockService.js';
 
 export class CreateSaleUseCase {
+  private readonly inventory = new InventoryStockService();
+
   constructor(private readonly prisma: PrismaClient) {}
 
-  async execute(employeeId: string, input: CreateSaleInput) {
+  async execute(employeeId: string, tenantIdOrInput: string | CreateSaleInput, branchId?: string, explicitInput?: CreateSaleInput) {
+    const legacy = typeof tenantIdOrInput !== 'string';
+    const tenantId = legacy ? undefined : tenantIdOrInput;
+    const input = legacy ? tenantIdOrInput : explicitInput!;
     const amount = new Prisma.Decimal(input.amount);
     const amountCash = new Prisma.Decimal(input.amountCash);
     const amountTransfer = new Prisma.Decimal(input.amountTransfer);
@@ -18,7 +24,7 @@ export class CreateSaleUseCase {
     return this.prisma.$transaction(async (tx) => {
       const productIds = input.items.map((item) => item.productId);
       const products = await tx.store.findMany({
-        where: { id: { in: productIds }, deletedAt: null }
+        where: { id: { in: productIds }, ...(tenantId ? { tenantId } : {}), deletedAt: null }
       });
 
       const productsById = new Map(products.map((product) => [product.id, product]));
@@ -28,9 +34,18 @@ export class CreateSaleUseCase {
         if (!product) {
           throw new ValidationAppError(`Producto inexistente: ${item.productId}`);
         }
-        if (product.stock < item.quantity) {
+        if (legacy && product.stock < item.quantity) {
           throw new ValidationAppError(`Stock insuficiente para ${product.name}`);
         }
+      }
+
+      const poolByProduct = new Map<string, string>();
+      for (const item of legacy ? [] : input.items) {
+        const product = productsById.get(item.productId)!;
+        const poolId = await this.inventory.decrement(tx, {
+          tenantId: tenantId!, branchId: branchId!, productId: item.productId, quantity: item.quantity, productName: product.name
+        });
+        poolByProduct.set(item.productId, poolId);
       }
 
       const perfumeCount = input.items.reduce((total, item) => total + item.quantity, 0);
@@ -42,6 +57,8 @@ export class CreateSaleUseCase {
 
       const sale = await tx.sale.create({
         data: {
+          ...(tenantId ? { tenantId } : {}),
+          ...(branchId ? { branchId } : {}),
           employeeId,
           messengerId: input.messengerId ?? null,
           sellerId: input.sellerId ?? null,
@@ -62,7 +79,9 @@ export class CreateSaleUseCase {
                 throw new ValidationAppError('Uno de los productos seleccionados no esta disponible');
               }
               return {
+                ...(tenantId ? { tenantId } : {}),
                 storeId: item.productId,
+                ...(poolByProduct.has(item.productId) ? { inventoryPoolId: poolByProduct.get(item.productId)! } : {}),
                 quantity: item.quantity,
                 unitPrice: product.salePrice,
                 purchaseUnitPrice: product.purchasePrice
@@ -90,18 +109,13 @@ export class CreateSaleUseCase {
         }
       });
 
-      for (const item of input.items) {
-        const updated = await tx.store.updateMany({
-          where: {
-            id: item.productId,
-            stock: { gte: item.quantity },
-            deletedAt: null
-          },
-          data: { stock: { decrement: item.quantity } }
-        });
-
-        if (updated.count !== 1) {
-          throw new ValidationAppError('Stock insuficiente durante la confirmacion de venta');
+      if (legacy) {
+        for (const item of input.items) {
+          const updated = await tx.store.updateMany({
+            where: { id: item.productId, stock: { gte: item.quantity }, deletedAt: null },
+            data: { stock: { decrement: item.quantity } }
+          });
+          if (updated.count !== 1) throw new ValidationAppError('Stock insuficiente durante la confirmacion de venta');
         }
       }
 

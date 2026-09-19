@@ -28,8 +28,10 @@ export interface InventoryDetailInput {
 export class InventoryUseCases {
   constructor(private readonly prisma: PrismaClient) {}
 
-  async review(actor: AuthenticatedUser, input: InventoryPreviewInput) {
-    const snapshot = await this.inventorySnapshot(actor.tenantId);
+  async review(actor: AuthenticatedUser, branchIdOrInput: string | InventoryPreviewInput, explicitInput?: InventoryPreviewInput) {
+    const branchId = typeof branchIdOrInput === 'string' ? branchIdOrInput : undefined;
+    const input = typeof branchIdOrInput === 'string' ? explicitInput! : branchIdOrInput;
+    const snapshot = await this.inventorySnapshot(actor.tenantId, branchId);
     const start = (input.page - 1) * input.pageSize;
     const items = snapshot.products.slice(start, start + input.pageSize);
 
@@ -41,14 +43,25 @@ export class InventoryUseCases {
     };
   }
 
-  private async inventorySnapshot(tenantId: string) {
+  private async inventorySnapshot(tenantId: string, branchId?: string) {
     const products = await this.prisma.store.findMany({
       where: { tenantId, deletedAt: null },
       orderBy: { name: 'asc' }
     });
 
+    if (!branchId) {
+      const enriched = products.map((product) => ({ ...product, product: product.name, price: product.purchasePrice, inventoryValue: product.purchasePrice.mul(product.stock) }));
+      return { products: enriched, totals: enriched.reduce((acc, product) => ({ totalProducts: acc.totalProducts + product.stock, totalInventoryValue: acc.totalInventoryValue.plus(product.inventoryValue) }), { totalProducts: 0, totalInventoryValue: new Prisma.Decimal(0) }) };
+    }
+    const branch = await this.prisma.branch.findFirst({ where: { id: branchId, tenantId }, select: { defaultInventoryPoolId: true } });
+    if (!branch?.defaultInventoryPoolId) throw new NotFoundError('Sucursal sin inventario configurado');
+    const overrides = await this.prisma.branchInventoryProductOverride.findMany({ where: { tenantId, branchId }, select: { productId: true, poolId: true } });
+    const overrideMap = new Map(overrides.map((item) => [item.productId, item.poolId]));
+    const balances = await this.prisma.inventoryPoolStock.findMany({ where: { tenantId, productId: { in: products.map((product) => product.id) } } });
+    const stockMap = new Map(balances.filter((item) => item.poolId === (overrideMap.get(item.productId) ?? branch.defaultInventoryPoolId)).map((item) => [item.productId, item.stock]));
     const enriched = products.map((product) => ({
       ...product,
+      stock: stockMap.get(product.id) ?? 0,
       product: product.name,
       price: product.purchasePrice,
       inventoryValue: product.purchasePrice.mul(product.stock)
@@ -66,17 +79,18 @@ export class InventoryUseCases {
     return { products: enriched, totals };
   }
 
-  async save(actor: AuthenticatedUser, input: InventoryRangeInput) {
+  async save(actor: AuthenticatedUser, branchId: string, input: InventoryRangeInput) {
     const range = parseDateRange(input);
     const fallbackRange = currentCalendarDayRange();
     const from = range.from ?? fallbackRange.from;
     const to = range.to ?? fallbackRange.to;
 
-    const snapshot = await this.inventorySnapshot(actor.tenantId);
+    const snapshot = await this.inventorySnapshot(actor.tenantId, branchId);
 
     const report = await this.prisma.inventoryReport.create({
       data: {
         tenantId: actor.tenantId,
+        branchId,
         fromDate: from,
         toDate: to,
         name: input.name?.trim() || `Reporte de inventario ${this.formatDateOnly(new Date())}`,
@@ -105,7 +119,9 @@ export class InventoryUseCases {
     return this.presentReport(report);
   }
 
-  async list(actor: AuthenticatedUser, input: PaginatedInventoryRangeInput) {
+  async list(actor: AuthenticatedUser, branchIdOrInput: string | PaginatedInventoryRangeInput, explicitInput?: PaginatedInventoryRangeInput) {
+    const branchId = typeof branchIdOrInput === 'string' ? branchIdOrInput : undefined;
+    const input = typeof branchIdOrInput === 'string' ? explicitInput! : branchIdOrInput;
     const range = dateRangeOrCurrentDay(input);
     const createdAt = buildCreatedAtFilter(range);
     const canGlobal = this.canReadGlobalInventoryReports(actor);
@@ -115,6 +131,7 @@ export class InventoryUseCases {
 
     const where = {
       tenantId: actor.tenantId,
+      ...(branchId ? { branchId } : {}),
       deletedAt: null,
       ...(createdAt ? { createdAt } : {})
     };
@@ -136,7 +153,7 @@ export class InventoryUseCases {
     return this.paginated(items.map((report) => this.presentReport(report)), total, input);
   }
 
-  async detail(id: string, actor: AuthenticatedUser, input: InventoryDetailInput) {
+  async detail(id: string, actor: AuthenticatedUser, input: InventoryDetailInput, branchId?: string) {
     const canGlobal = this.canReadGlobalInventoryReports(actor);
     if (!canGlobal) {
       throw new ForbiddenError('Permiso requerido para leer reportes de inventario');
@@ -144,6 +161,7 @@ export class InventoryUseCases {
     const where = {
       id,
       tenantId: actor.tenantId,
+      ...(branchId ? { branchId } : {}),
       deletedAt: null
     };
     const [report, details, totalDetails] = await Promise.all([
@@ -176,9 +194,9 @@ export class InventoryUseCases {
     });
   }
 
-  async softDelete(id: string, actor: AuthenticatedUser) {
+  async softDelete(id: string, actor: AuthenticatedUser, branchId?: string) {
     const report = await this.prisma.inventoryReport.findFirst({
-      where: { id, tenantId: actor.tenantId, deletedAt: null }
+      where: { id, tenantId: actor.tenantId, ...(branchId ? { branchId } : {}), deletedAt: null }
     });
     if (!report) throw new NotFoundError('Reporte de inventario no encontrado');
 
@@ -188,9 +206,9 @@ export class InventoryUseCases {
     });
   }
 
-  async update(id: string, actor: AuthenticatedUser, input: { name?: string | undefined; note?: string | null | undefined }) {
+  async update(id: string, actor: AuthenticatedUser, input: { name?: string | undefined; note?: string | null | undefined }, branchId?: string) {
     const report = await this.prisma.inventoryReport.findFirst({
-      where: { id, tenantId: actor.tenantId, deletedAt: null }
+      where: { id, tenantId: actor.tenantId, ...(branchId ? { branchId } : {}), deletedAt: null }
     });
     if (!report) throw new NotFoundError('Reporte de inventario no encontrado');
 

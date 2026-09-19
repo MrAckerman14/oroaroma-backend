@@ -37,6 +37,18 @@ export const authPlugin = fp(async (app) => {
       const branch = await app.container.prisma.branch.findFirst({ where: { id: requestedBranchId, tenantId: user.tenantId, status: 'ACTIVE' }, select: { id: true } });
       if (!branch) throw new ForbiddenError('La sucursal seleccionada no está disponible');
       request.branchId = branch.id;
+    } else {
+      const primaryMembership = user.branches?.find((branch) => branch.isPrimary) ?? user.branches?.[0];
+      if (primaryMembership) {
+        request.branchId = primaryMembership.id;
+      } else {
+        const primaryBranch = await app.container.prisma.branch.findFirst({
+          where: { tenantId: user.tenantId, status: 'ACTIVE', isPrimary: true },
+          select: { id: true }
+        });
+        if (!primaryBranch) throw new ForbiddenError('No hay una sucursal activa disponible');
+        request.branchId = primaryBranch.id;
+      }
     }
   });
 
