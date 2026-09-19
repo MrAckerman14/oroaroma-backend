@@ -20,6 +20,19 @@ describe('SaleUseCases state transitions', () => {
   });
 });
 
+describe('SaleUseCases read scopes', () => {
+  it('permite leer todas las ventas de la sucursal con alcance store', () => {
+    const actor: AuthenticatedUser = {
+      id: 'user-1', tenantId: 'tenant-1', email: 'one@test.local', name: 'One',
+      status: 'ACTIVE', statusLabel: 'Activo', roles: [],
+      permissions: [{ key: 'sales:read:store', resource: 'sales', action: 'read', scope: 'store' }]
+    };
+    const sales = new SaleUseCases({} as PrismaClient);
+    const where = (sales as unknown as { buildAccessWhere: (value: AuthenticatedUser) => object }).buildAccessWhere(actor);
+    expect(where).toEqual({});
+  });
+});
+
 describe('SaleUseCases participant reassignment', () => {
   const ownActor: AuthenticatedUser = {
     id: 'user-1', tenantId: 'tenant-1', email: 'one@test.local', name: 'One',

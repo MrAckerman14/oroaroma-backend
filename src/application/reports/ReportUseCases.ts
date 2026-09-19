@@ -3,7 +3,6 @@ import { env } from '../../config/env.js';
 import { NotFoundError, ValidationAppError } from '../../shared/errors/AppError.js';
 import { buildCreatedAtFilter, currentCalendarDayRange, dateRangeOrCurrentDay, parseDateRange } from '../../shared/utils/dateRange.js';
 import { cashClosureStatusLabels, labelFromMap, paymentMethodLabels, saleStatusLabels } from '../../shared/utils/spanishLabels.js';
-import { hasRoleKey } from '../../shared/utils/roleKeys.js';
 import type { AuthenticatedUser } from '../../types/rbac.js';
 
 export interface DateRangeInput {
@@ -771,28 +770,12 @@ export class ReportUseCases {
   }
 
   private canViewCashDetail(actor: AuthenticatedUser, detail: 'messengers' | 'sellers' | 'employees') {
-    if (detail === 'messengers' && this.hasAnyRole(actor, ['admin', 'employee', 'supervisor', 'collaborator', 'messenger'])) {
-      return true;
-    }
-
-    if (detail === 'sellers' && !this.hasAnyRole(actor, ['admin'])) {
-      return false;
-    }
-
-    if (detail === 'employees' && !this.hasAnyRole(actor, ['admin'])) {
-      return false;
-    }
-
     const action = `cash-detail-${detail}`;
     return actor.permissions.some((permission) => {
       return permission.resource === 'reports'
         && permission.action === action
         && (permission.scope === 'global' || permission.scope === 'own');
     });
-  }
-
-  private hasAnyRole(actor: AuthenticatedUser, roles: string[]) {
-    return actor.roles.some((role) => hasRoleKey(role.roleKey, roles));
   }
 
   private canReadGlobalCashClosures(actor: AuthenticatedUser) {
@@ -865,8 +848,7 @@ export class ReportUseCases {
   }
 
   private canReadGlobalCashReconciliation(actor: AuthenticatedUser) {
-    return this.hasAnyRole(actor, ['admin'])
-      || actor.permissions.some((permission) => permission.key === 'reports:cash:global');
+    return actor.permissions.some((permission) => permission.key === 'reports:cash:global');
   }
 
   private closableSalesByIdsWhere(

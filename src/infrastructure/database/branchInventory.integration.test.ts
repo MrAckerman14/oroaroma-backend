@@ -62,6 +62,9 @@ describeDb('branch inventory isolation and reversible sales', () => {
     expect(await balance(branchB.defaultInventoryPoolId!)).toBe(0);
 
     await branches.configureInventorySharing(actor, branchB.id, { mode: 'FULL', sourceBranchId: branchA.id });
+    await expect(branches.inventorySharing(actor, branchB.id)).resolves.toMatchObject({
+      mode: 'FULL', sourceBranchId: branchA.id
+    });
     const saleB = await createSale.execute(actor.id, tenantId, branchB.id, {
       amount: '300', amountCash: '300', amountTransfer: '0', deliveryPay: '0', items: [{ productId, quantity: 3 }]
     });
@@ -103,10 +106,15 @@ describeDb('branch inventory isolation and reversible sales', () => {
 
   it('hides a product only in the selected branch', async () => {
     const stores = new StoreUseCases(prisma);
+    const createSale = new CreateSaleUseCase(prisma);
     await stores.softDelete(productId, tenantId, branchB.id);
 
     expect((await stores.list(tenantId, branchA.id, { page: 1, pageSize: 20 })).items).toHaveLength(1);
     expect((await stores.list(tenantId, branchB.id, { page: 1, pageSize: 20 })).items).toHaveLength(0);
+    await expect(createSale.execute(actor.id, tenantId, branchB.id, {
+      amount: '100', amountCash: '100', amountTransfer: '0', deliveryPay: '0',
+      items: [{ productId, quantity: 1 }]
+    })).rejects.toThrow(`Producto inexistente: ${productId}`);
 
     await stores.restore(productId, tenantId, branchB.id);
     expect((await stores.list(tenantId, branchB.id, { page: 1, pageSize: 20 })).items).toHaveLength(1);

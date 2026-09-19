@@ -51,7 +51,11 @@ export async function assertRuntimeDatabaseRole() {
       EXISTS (
         SELECT 1 FROM pg_class c JOIN pg_namespace n ON n.oid = c.relnamespace
         WHERE n.nspname = 'public' AND c.relkind = 'r' AND c.relname <> '_prisma_migrations'
-          AND NOT has_table_privilege(current_user, c.oid, 'SELECT,INSERT,UPDATE,DELETE')
+          AND NOT CASE
+            WHEN c.relname = 'AuditLog' THEN has_table_privilege(current_user, c.oid, 'SELECT,INSERT')
+            WHEN c.relname IN ('Permission', 'PlatformPermission') THEN has_table_privilege(current_user, c.oid, 'SELECT')
+            ELSE has_table_privilege(current_user, c.oid, 'SELECT,INSERT,UPDATE,DELETE')
+          END
       ) AS "missingTablePrivileges",
       EXISTS (
         SELECT 1 FROM pg_class c JOIN pg_namespace n ON n.oid = c.relnamespace
@@ -130,8 +134,11 @@ async function setDatabaseContext(
   tx: Parameters<Parameters<PrismaClient['$transaction']>[0]>[0],
   context: TenantDatabaseContext
 ) {
-  await tx.$executeRaw`SELECT set_config('app.tenant_id', ${context.tenantId}, true)`;
-  await tx.$executeRaw`SELECT set_config('app.platform_admin', ${context.platformAdmin ? 'true' : 'false'}, true)`;
+  await tx.$queryRaw`
+    SELECT
+      set_config('app.tenant_id', ${context.tenantId}, true),
+      set_config('app.platform_admin', ${context.platformAdmin ? 'true' : 'false'}, true)
+  `;
 }
 
 function isPrismaDelegate(value: unknown): value is object {

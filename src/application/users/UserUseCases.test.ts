@@ -280,7 +280,7 @@ describe('UserUseCases listOptions', () => {
 });
 
 describe('UserUseCases dashboard', () => {
-  it('limita el listado del supervisor a vendedores y supervisores', async () => {
+  it('permite al rol personalizado consultar los roles solicitados con permiso global', async () => {
     const actor: AuthenticatedUser = {
       id: 'supervisor-1',
       tenantId: 'default',
@@ -331,7 +331,7 @@ describe('UserUseCases dashboard', () => {
         roleAssignments: {
           some: {
             role: {
-              key: { in: ['employee', 'supervisor'] }
+              key: { in: ['admin', 'collaborator', 'seller', 'employee', 'supervisor', 'messenger'] }
             }
           }
         }
@@ -343,7 +343,7 @@ describe('UserUseCases dashboard', () => {
         roleAssignments: {
           some: {
             role: {
-              key: { in: ['employee', 'supervisor'] }
+              key: { in: ['admin', 'collaborator', 'seller', 'employee', 'supervisor', 'messenger'] }
             }
           }
         }
@@ -353,7 +353,7 @@ describe('UserUseCases dashboard', () => {
     expect(result.pagination.total).toBe(2);
   });
 
-  it('usa vendedores y supervisores por defecto para el dashboard de supervisor', async () => {
+  it('no restringe por nombre de rol cuando existe permiso global', async () => {
     const actor: AuthenticatedUser = {
       id: 'supervisor-1',
       tenantId: 'default',
@@ -385,13 +385,7 @@ describe('UserUseCases dashboard', () => {
     await users.dashboard({ page: 1, pageSize: 100 }, actor);
 
     expect(prisma.user.findMany).toHaveBeenCalledWith(expect.objectContaining({
-      where: expect.objectContaining({
-        roleAssignments: expect.objectContaining({
-          some: expect.objectContaining({
-            role: { key: { in: ['employee', 'supervisor'] } }
-          })
-        })
-      })
+      where: expect.not.objectContaining({ roleAssignments: expect.anything() })
     }));
   });
 });

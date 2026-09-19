@@ -52,6 +52,34 @@ function makeUseCase(overrides: { stock?: number; updateCount?: number } = {}) {
 }
 
 describe('CreateSaleUseCase', () => {
+  it('filtra los productos ocultos para la sucursal antes de descontar inventario', async () => {
+    const findMany = vi.fn()
+      .mockResolvedValueOnce([{ id: 'employee-1' }])
+      .mockResolvedValueOnce([]);
+    const tx = {
+      user: { findMany },
+      store: { findMany }
+    };
+    const prisma = {
+      $transaction: vi.fn((callback: (transaction: typeof tx) => unknown) => callback(tx))
+    };
+    const useCase = new CreateSaleUseCase(prisma as unknown as PrismaClient);
+
+    await expect(useCase.execute('employee-1', 'tenant-1', 'branch-1', {
+      amount: '175', amountCash: '175', amountTransfer: '0', deliveryPay: '0',
+      items: [{ productId: product.id, quantity: 1 }]
+    })).rejects.toThrow(`Producto inexistente: ${product.id}`);
+
+    expect(findMany).toHaveBeenLastCalledWith({
+      where: {
+        id: { in: [product.id] },
+        tenantId: 'tenant-1',
+        deletedAt: null,
+        branchExclusions: { none: { tenantId: 'tenant-1', branchId: 'branch-1' } }
+      }
+    });
+  });
+
   it('crea la venta con precio de venta, conserva precio de compra interno y descuenta stock', async () => {
     const { useCase, tx, saleCreate } = makeUseCase();
 

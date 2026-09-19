@@ -46,6 +46,7 @@ export const authPlugin = fp(async (app) => {
       if (primaryMembership) {
         request.branchId = primaryMembership.id;
       } else {
+        if (!canUseImplicitPrimaryBranch(user)) throw new ForbiddenError('No tienes una sucursal activa asignada');
         const primaryBranch = await app.container.prisma.branch.findFirst({
           where: { tenantId: user.tenantId, status: 'ACTIVE', isPrimary: true },
           select: { id: true }
@@ -99,6 +100,10 @@ export const authPlugin = fp(async (app) => {
     };
   });
 });
+
+export function canUseImplicitPrimaryBranch(user: AuthenticatedUser) {
+  return user.permissions.some((permission) => permission.key === 'branches:read:global');
+}
 
 export function canEnterResource(
   policy: Pick<RbacPolicy, 'can'>,

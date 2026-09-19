@@ -135,10 +135,13 @@ model Branch {
   createdAt              DateTime     @default(now())
   updatedAt              DateTime     @updatedAt
   defaultInventoryPoolId String?
+  sourceInventoryBranchId String?
 
   tenant               Tenant                           @relation(fields: [tenantId], references: [id], onDelete: Restrict)
   memberships          BranchMembership[]
   defaultInventoryPool InventoryPool?                   @relation("BranchDefaultInventoryPool", fields: [defaultInventoryPoolId], references: [id], onDelete: Restrict)
+  sourceInventoryBranch Branch?                         @relation("BranchInventorySource", fields: [sourceInventoryBranchId], references: [id], onDelete: SetNull)
+  inventorySharingTargets Branch[]                      @relation("BranchInventorySource")
   inventoryOverrides   BranchInventoryProductOverride[]
   productExclusions    BranchProductExclusion[]
   sales                Sale[]
@@ -151,6 +154,7 @@ model Branch {
   @@unique([tenantId, code])
   @@index([tenantId, status])
   @@index([defaultInventoryPoolId])
+  @@index([sourceInventoryBranchId])
 }
 
 model InventoryPool {

@@ -28,6 +28,12 @@ const adminWithDetails: AuthenticatedUser = {
       resource: 'reports',
       action: 'cash-detail-employees',
       scope: 'global'
+    },
+    {
+      key: 'reports:cash-detail-messengers:global',
+      resource: 'reports',
+      action: 'cash-detail-messengers',
+      scope: 'global'
     }
   ]
 };
@@ -126,7 +132,7 @@ describe('ReportUseCases', () => {
       sale({ status: 'DELIVERY_PENDING', deliveryPay: '100', messenger, employee })
     ];
 
-    const summary = await cashSummary(admin, sales);
+    const summary = await cashSummary(adminWithDetails, sales);
     const [row] = summary.detailMessenger;
 
     expect(row?.finalizedDeliveries).toBe(2);
@@ -367,7 +373,7 @@ describe('ReportUseCases', () => {
 
     const employee = { id: 'employee-1', name: 'Bradley', email: 'bradley@oroaroma.local' };
 
-    const summary = await cashSummary(admin, [
+    const summary = await cashSummary(adminWithDetails, [
       sale({
         status: 'FINALIZED',
         deliveryPay: '300',

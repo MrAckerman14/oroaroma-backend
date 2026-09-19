@@ -2,7 +2,6 @@ import type { FastifyInstance, FastifyRequest } from 'fastify';
 import { CreateSaleUseCase } from '../../../application/sales/CreateSaleUseCase.js';
 import { SaleUseCases } from '../../../application/sales/SaleUseCases.js';
 import { ForbiddenError } from '../../../shared/errors/AppError.js';
-import { hasRoleKey } from '../../../shared/utils/roleKeys.js';
 import { dateRangePaginationQuerySchema, idParamsSchema } from '../schemas/commonSchemas.js';
 import { createSaleSchema, updateSaleSchema } from '../schemas/saleSchemas.js';
 
@@ -70,9 +69,7 @@ async function canCreateSales(request: FastifyRequest) {
   const hasPermission = actor?.permissions.some((permission) => {
     return permission.resource === 'sales' && permission.action === 'create';
   }) ?? false;
-  const hasRole = actor?.roles.some((role) => hasRoleKey(role.roleKey, ['admin', 'employee', 'supervisor'])) ?? false;
-
-  if (!hasPermission || !hasRole) {
+  if (!hasPermission) {
     throw new ForbiddenError('Permiso requerido para crear ventas');
   }
 }

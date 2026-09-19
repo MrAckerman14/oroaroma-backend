@@ -32,7 +32,14 @@ export class CreateSaleUseCase {
 
       const productIds = input.items.map((item) => item.productId);
       const products = await tx.store.findMany({
-        where: { id: { in: productIds }, ...(tenantId ? { tenantId } : {}), deletedAt: null }
+        where: {
+          id: { in: productIds },
+          ...(tenantId ? { tenantId } : {}),
+          deletedAt: null,
+          ...(tenantId && branchId ? {
+            branchExclusions: { none: { tenantId, branchId } }
+          } : {})
+        }
       });
 
       const productsById = new Map(products.map((product) => [product.id, product]));

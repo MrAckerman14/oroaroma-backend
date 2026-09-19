@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { RbacPolicy } from '../../../domain/access/RbacPolicy.js';
 import type { AuthenticatedUser } from '../../../types/rbac.js';
-import { canEnterResource } from './authPlugin.js';
+import { canEnterResource, canUseImplicitPrimaryBranch } from './authPlugin.js';
 
 const actor: AuthenticatedUser = {
   id: 'user-1', tenantId: 'tenant-1', email: 'one@test.local', name: 'One',
@@ -16,5 +16,13 @@ describe('route capability authorization', () => {
 
   it('rechaza acciones sin una capacidad compatible', () => {
     expect(canEnterResource(new RbacPolicy(), actor, 'sales', 'delete').allowed).toBe(false);
+  });
+
+  it('no asigna silenciosamente la sucursal principal a usuarios sin membresias', () => {
+    expect(canUseImplicitPrimaryBranch(actor)).toBe(false);
+    expect(canUseImplicitPrimaryBranch({
+      ...actor,
+      permissions: [{ key: 'branches:read:global', resource: 'branches', action: 'read', scope: 'global' }]
+    })).toBe(true);
   });
 });

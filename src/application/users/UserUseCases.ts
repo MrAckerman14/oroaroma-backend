@@ -455,6 +455,7 @@ export class UserUseCases {
     if (input.scope === 'STORE' && !input.storeId) {
       throw new ValidationAppError('El producto o tienda es requerido para el alcance seleccionado');
     }
+    await this.assertRoleStoreScope(tenantId, input);
 
     const assignment = await this.prisma.userRoleAssignment.create({
       data: {
@@ -462,7 +463,7 @@ export class UserUseCases {
         userId,
         roleId: role.id,
         scope: input.scope,
-        storeId: input.storeId ?? null,
+        storeId: input.scope === 'STORE' ? input.storeId! : null,
         expiresAt: input.expiresAt ? new Date(input.expiresAt) : null
       },
       include: { role: true, store: this.roleAssignmentStoreSelect() }
@@ -482,6 +483,7 @@ export class UserUseCases {
     if (input.scope === 'STORE' && !input.storeId) {
       throw new ValidationAppError('El producto o tienda es requerido para el alcance seleccionado');
     }
+    await this.assertRoleStoreScope(tenantId, input);
 
     const assignment = await this.prisma.$transaction(async (tx) => {
       await tx.userRoleAssignment.deleteMany({ where: { userId, tenantId } });
@@ -492,7 +494,7 @@ export class UserUseCases {
           userId,
           roleId: role.id,
           scope: input.scope,
-          storeId: input.storeId ?? null,
+          storeId: input.scope === 'STORE' ? input.storeId! : null,
           expiresAt: input.expiresAt ? new Date(input.expiresAt) : null
         },
         include: { role: true, store: this.roleAssignmentStoreSelect() }
@@ -731,8 +733,7 @@ export class UserUseCases {
   private userStatsAccessWhere(actor?: AuthenticatedUser): Prisma.SaleWhereInput {
     if (!actor) return {};
 
-    const canReadGlobal = this.hasAnyRole(actor, ['admin'])
-      || actor.permissions.some((permission) => permission.key === 'reports:cash:global');
+    const canReadGlobal = actor.permissions.some((permission) => permission.key === 'reports:cash:global');
 
     if (canReadGlobal) return {};
 
@@ -803,7 +804,7 @@ export class UserUseCases {
   }
 
   private visibleOptionRoleKeys(actor?: AuthenticatedUser) {
-    if (this.hasAnyRole(actor, ['admin'])) {
+    if (actor?.permissions.some((permission) => permission.key === 'users:read:global')) {
       return ['admin', 'employee', 'supervisor', ...roleQueryKeys('collaborator'), 'messenger'];
     }
 
@@ -819,7 +820,7 @@ export class UserUseCases {
       ?.map((role) => role.trim().toLowerCase())
       .filter(Boolean);
 
-    if (this.hasAnyRole(actor, ['admin'])) {
+    if (actor?.permissions.some((permission) => permission.key === 'users:read:global')) {
       return normalizedRequested?.length ? normalizedRequested.flatMap((role) => roleQueryKeys(role)) : undefined;
     }
 
@@ -837,6 +838,15 @@ export class UserUseCases {
 
   private hasAnyRole(actor: AuthenticatedUser | undefined, roles: string[]) {
     return actor?.roles.some((role) => hasRoleKey(role.roleKey, roles)) ?? false;
+  }
+
+  private async assertRoleStoreScope(tenantId: string, input: AssignRoleInput) {
+    if (input.scope !== 'STORE') return;
+    const store = await this.prisma.store.findFirst({
+      where: { id: input.storeId!, tenantId, deletedAt: null },
+      select: { id: true }
+    });
+    if (!store) throw new ValidationAppError('El producto o tienda no pertenece a esta empresa');
   }
 
   private actorTenantWhere(actor?: AuthenticatedUser) {

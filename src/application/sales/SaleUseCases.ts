@@ -1,7 +1,6 @@
 import { Prisma, type PrismaClient, type SaleStatus } from '@prisma/client';
 import { ForbiddenError, NotFoundError, ValidationAppError } from '../../shared/errors/AppError.js';
 import { buildCreatedAtFilter, dateRangeOrCurrentDay } from '../../shared/utils/dateRange.js';
-import { hasRoleKey } from '../../shared/utils/roleKeys.js';
 import type { AuthenticatedUser } from '../../types/rbac.js';
 import { presentSale } from './salePresenter.js';
 import { InventoryStockService } from '../inventory/InventoryStockService.js';
@@ -79,7 +78,7 @@ export class SaleUseCases {
       });
       if (!currentSale) throw new NotFoundError('Venta no encontrada');
 
-      const isAdmin = this.hasAnyRole(actor, ['admin']);
+      const canReopenCancelled = actor.permissions.some((permission) => permission.key === 'sales:update:global');
       const isReopeningCancelled = currentSale.status === 'CANCELLED'
         && input.status !== undefined
         && input.status !== 'CANCELLED';
@@ -88,8 +87,8 @@ export class SaleUseCases {
       this.assertParticipantReassignmentAllowed(actor, currentSale, input);
       await this.assertUpdatedParticipants(tx, currentSale, input);
 
-      if (isReopeningCancelled && !isAdmin) {
-        throw new ValidationAppError('Solo un administrador puede reabrir una venta cancelada');
+      if (isReopeningCancelled && !canReopenCancelled) {
+        throw new ValidationAppError('Se requiere permiso global para reabrir una venta cancelada');
       }
 
       if (input.status === 'CANCELLED' && currentSale.closureDetails.length > 0 && currentSale.status !== 'DELIVERY_PENDING') {
@@ -290,11 +289,11 @@ export class SaleUseCases {
   }
 
   private buildAccessWhere(actor: AuthenticatedUser) {
-    const canReadGlobal = actor.permissions.some((permission) => {
-      return permission.key === 'sales:read:global';
+    const canReadBranch = actor.permissions.some((permission) => {
+      return permission.key === 'sales:read:global' || permission.key === 'sales:read:store';
     });
 
-    if (canReadGlobal) return {};
+    if (canReadBranch) return {};
 
     return {
       OR: [
@@ -323,10 +322,6 @@ export class SaleUseCases {
     if (canOwn && [sale.employeeId, sale.sellerId, sale.messengerId].includes(actor.id)) return;
 
     throw new ForbiddenError('No tienes acceso a esta venta');
-  }
-
-  private hasAnyRole(actor: AuthenticatedUser, roles: string[]) {
-    return actor.roles.some((role) => hasRoleKey(role.roleKey, roles));
   }
 
   private saleIncludes() {
@@ -366,7 +361,8 @@ export class SaleUseCases {
         where: {
           id: { in: productIds },
           tenantId: sale.tenantId,
-          deletedAt: null
+          deletedAt: null,
+          branchExclusions: { none: { tenantId: sale.tenantId, branchId: sale.branchId } }
         }
       })
     ]);
