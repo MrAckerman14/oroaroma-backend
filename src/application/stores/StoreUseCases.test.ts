@@ -22,6 +22,16 @@ function makeUseCases(products = [product]) {
       count: vi.fn().mockResolvedValue(products.length),
       findFirst: vi.fn().mockResolvedValue(products[0])
     },
+    branch: {
+      findFirst: vi.fn().mockResolvedValue({ defaultInventoryPoolId: 'pool-1' })
+    },
+    inventoryPoolStock: {
+      findFirst: vi.fn().mockResolvedValue({ id: 'stock-1' }),
+      findMany: vi.fn().mockResolvedValue(products.map((item) => ({ productId: item.id, poolId: 'pool-1', stock: item.stock })))
+    },
+    branchInventoryProductOverride: {
+      findMany: vi.fn().mockResolvedValue([])
+    },
     saleDetail: {
       groupBy: vi.fn().mockResolvedValue(products.map((item, index) => ({
         storeId: item.id,
@@ -70,6 +80,21 @@ describe('StoreUseCases', () => {
       take: 10
     }));
     expect(result.items).toHaveLength(2);
+  });
+
+  it('limita el catalogo a los productos vinculados al inventario de la sucursal', async () => {
+    const { stores, prisma } = makeUseCases();
+
+    await stores.list('tenant-1', 'branch-1', { page: 1, pageSize: 10 });
+
+    expect(prisma.store.findMany).toHaveBeenCalledWith(expect.objectContaining({
+      where: expect.objectContaining({
+        OR: [
+          { inventoryStocks: { some: { poolId: 'pool-1' } } },
+          { inventoryOverrides: { some: { branchId: 'branch-1' } } }
+        ]
+      })
+    }));
   });
 
   it('no reordena por vendidos cuando calcula cantidades vendidas', async () => {

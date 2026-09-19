@@ -46,11 +46,20 @@ export class StoreUseCases {
     const options = (typeof branchIdOrPagination === 'string' ? explicitOptions : paginationOrOptions) as StoreListOptions;
     const stockFilter = this.stockFilter(options);
     const searchFilter = this.searchFilter(options.search);
+    const branchVisibility = branchId
+      ? await this.branchProductVisibility(tenantId, branchId)
+      : undefined;
     const where: Prisma.StoreWhereInput = {
       tenantId,
       ...(options.includeDeleted ? {} : { deletedAt: null }),
       ...(stockFilter ? { stock: stockFilter } : {}),
-      ...(searchFilter ? searchFilter : {})
+      ...(searchFilter ? searchFilter : {}),
+      ...(branchVisibility ? {
+        OR: [
+          { inventoryStocks: { some: { poolId: branchVisibility.poolId } } },
+          { inventoryOverrides: { some: { branchId: branchVisibility.branchId } } }
+        ]
+      } : {})
     };
 
     if (!this.hasExplicitSoldRange(options)) {
@@ -182,12 +191,14 @@ export class StoreUseCases {
 
   async findById(id: string, tenantId: string, branchId: string, includeSensitivePrices = false) {
     const store = await this.findActive(id, tenantId);
+    await this.assertVisibleInBranch(id, tenantId, branchId);
     const stocks = await this.stockByProduct(tenantId, branchId, [id]);
     return this.presentStore({ ...store, stock: stocks.get(id) ?? 0 }, includeSensitivePrices);
   }
 
   async update(id: string, tenantId: string, branchId: string, input: StoreInput) {
     await this.findActive(id, tenantId);
+    await this.assertVisibleInBranch(id, tenantId, branchId);
     return this.prisma.$transaction(async (tx) => {
       const product = await tx.store.update({ where: { id }, data: {
         ...(input.name ? { name: input.name } : {}),
@@ -303,6 +314,31 @@ export class StoreUseCases {
     const store = await this.prisma.store.findFirst({ where: { id, tenantId, deletedAt: null } });
     if (!store) throw new NotFoundError('Producto no encontrado');
     return store;
+  }
+
+  private async branchProductVisibility(tenantId: string, branchId: string) {
+    const branch = await this.prisma.branch.findFirst({
+      where: { id: branchId, tenantId, status: 'ACTIVE' },
+      select: { defaultInventoryPoolId: true }
+    });
+    if (!branch?.defaultInventoryPoolId) throw new ValidationAppError('La sucursal no tiene inventario configurado');
+    return { branchId, poolId: branch.defaultInventoryPoolId };
+  }
+
+  private async assertVisibleInBranch(productId: string, tenantId: string, branchId: string) {
+    const visibility = await this.branchProductVisibility(tenantId, branchId);
+    const stock = await this.prisma.inventoryPoolStock.findFirst({
+      where: {
+        tenantId,
+        productId,
+        OR: [
+          { poolId: visibility.poolId },
+          { product: { inventoryOverrides: { some: { branchId: visibility.branchId } } } }
+        ]
+      },
+      select: { id: true }
+    });
+    if (!stock) throw new NotFoundError('Producto no encontrado en la sucursal activa');
   }
 
   private presentStore<T extends {
