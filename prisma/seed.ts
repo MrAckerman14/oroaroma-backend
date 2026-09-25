@@ -59,7 +59,13 @@ const permissions = [
   ['branches:read:global', 'branches', 'read', PermissionScope.GLOBAL],
   ['branches:read:assigned', 'branches', 'read', PermissionScope.ASSIGNED],
   ['branches:update:global', 'branches', 'update', PermissionScope.GLOBAL],
-  ['branches:assign:global', 'branches', 'assign', PermissionScope.GLOBAL]
+  ['branches:assign:global', 'branches', 'assign', PermissionScope.GLOBAL],
+  ['warehouses:create:global', 'warehouses', 'create', PermissionScope.GLOBAL],
+  ['warehouses:read:global', 'warehouses', 'read', PermissionScope.GLOBAL],
+  ['warehouses:read:assigned', 'warehouses', 'read', PermissionScope.ASSIGNED],
+  ['warehouses:update:global', 'warehouses', 'update', PermissionScope.GLOBAL],
+  ['warehouses:transfer:global', 'warehouses', 'transfer', PermissionScope.GLOBAL],
+  ['warehouses:transfer:assigned', 'warehouses', 'transfer', PermissionScope.ASSIGNED]
 ] as const;
 
 const roleDefinitions = {
@@ -89,6 +95,8 @@ const roleDefinitions = {
     permissions: [
       'users:read:global',
       'branches:read:assigned',
+      'warehouses:read:assigned',
+      'warehouses:transfer:assigned',
       'stores:read:global',
       'sales:create:own',
       'sales:read:own',

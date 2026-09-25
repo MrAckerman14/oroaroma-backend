@@ -140,7 +140,8 @@ function moduleForResource(resource: RbacResource): TenantModuleKey | null {
     reports: 'cash-closures',
     'inventory-reports': 'inventory-reports',
     'expense-controls': 'expenses',
-    branches: 'users'
+    branches: 'users',
+    warehouses: 'inventory'
   };
   return modules[resource] ?? null;
 }

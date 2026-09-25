@@ -40,7 +40,8 @@ export const permissionResourceLabels: Record<string, string> = {
   'cash-closures': 'cierres de caja',
   'inventory-reports': 'reportes de inventario',
   reports: 'reportes',
-  'audit-logs': 'auditoria'
+  'audit-logs': 'auditoria',
+  warehouses: 'almacenes'
 };
 
 export const permissionActionLabels: Record<string, string> = {
@@ -59,7 +60,8 @@ export const permissionActionLabels: Record<string, string> = {
   'cash-detail-messengers': 'ver detalle de mensajeros',
   'cash-detail-sellers': 'ver detalle de colaboradores',
   'cash-detail-employees': 'ver detalle de vendedores',
-  inventory: 'inventario'
+  inventory: 'inventario',
+  transfer: 'transferir'
 };
 
 export const permissionScopeLabels: Record<string, string> = {

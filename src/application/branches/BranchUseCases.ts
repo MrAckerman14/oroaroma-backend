@@ -34,6 +34,9 @@ export class BranchUseCases {
         data: { tenantId: actor.tenantId, name: `Inventario ${input.name.trim()}`, normalizedName: `branch-${branchId}` }
       });
       const branch = await tx.branch.create({ data: { id: branchId, tenantId: actor.tenantId, name: input.name.trim(), normalizedName, code, address: input.address?.trim() || null, phone: input.phone?.trim() || null, defaultInventoryPoolId: pool.id } });
+      await tx.warehouse.create({
+        data: { tenantId: actor.tenantId, branchId: branch.id, inventoryPoolId: pool.id, name: 'Principal', normalizedName: 'principal', code: 'PRINCIPAL', isDefault: true }
+      });
       await tx.branchMembership.upsert({
         where: { branchId_userId: { branchId: branch.id, userId: actor.id } },
         update: {},

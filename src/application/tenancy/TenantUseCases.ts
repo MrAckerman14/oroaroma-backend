@@ -79,6 +79,7 @@ export class TenantUseCases {
       if (!adminRoleId) throw new Error('No existe el rol administrador base');
       const primaryPool = await tx.inventoryPool.create({ data: { tenantId: tenant.id, name: 'Inventario Principal', normalizedName: 'branch-principal' } });
       const primaryBranch = await tx.branch.create({ data: { tenantId: tenant.id, name: 'Principal', normalizedName: 'principal', code: 'PRINCIPAL', isPrimary: true, defaultInventoryPoolId: primaryPool.id } });
+      await tx.warehouse.create({ data: { tenantId: tenant.id, branchId: primaryBranch.id, inventoryPoolId: primaryPool.id, name: 'Principal', normalizedName: 'principal', code: 'PRINCIPAL', isDefault: true } });
       const admin = await tx.user.create({
         data: { tenantId: tenant.id, name: input.adminName.trim(), email, passwordHash, status: 'ACTIVE' }
       });

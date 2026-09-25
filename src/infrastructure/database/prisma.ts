@@ -52,7 +52,7 @@ export async function assertRuntimeDatabaseRole() {
         SELECT 1 FROM pg_class c JOIN pg_namespace n ON n.oid = c.relnamespace
         WHERE n.nspname = 'public' AND c.relkind = 'r' AND c.relname <> '_prisma_migrations'
           AND NOT CASE
-            WHEN c.relname = 'AuditLog' THEN has_table_privilege(current_user, c.oid, 'SELECT,INSERT')
+            WHEN c.relname IN ('AuditLog', 'InventoryTransfer', 'InventoryTransferItem') THEN has_table_privilege(current_user, c.oid, 'SELECT,INSERT')
             WHEN c.relname IN ('Permission', 'PlatformPermission') THEN has_table_privilege(current_user, c.oid, 'SELECT')
             ELSE has_table_privilege(current_user, c.oid, 'SELECT,INSERT,UPDATE,DELETE')
           END

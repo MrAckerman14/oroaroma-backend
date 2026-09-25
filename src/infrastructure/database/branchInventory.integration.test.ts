@@ -42,6 +42,7 @@ describeDb('branch inventory isolation and reversible sales', () => {
     await prisma.branchProductExclusion.deleteMany({ where: { tenantId } });
     await prisma.branchInventoryProductOverride.deleteMany({ where: { tenantId } });
     await prisma.inventoryPoolStock.deleteMany({ where: { tenantId } });
+    await prisma.warehouse.deleteMany({ where: { tenantId } });
     await prisma.branchMembership.deleteMany({ where: { tenantId } });
     await prisma.store.deleteMany({ where: { tenantId } });
     await prisma.branch.deleteMany({ where: { tenantId } });

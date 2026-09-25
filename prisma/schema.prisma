@@ -54,6 +54,15 @@ enum BranchStatus {
   INACTIVE
 }
 
+enum WarehouseStatus {
+  ACTIVE
+  INACTIVE
+}
+
+enum InventoryTransferStatus {
+  COMPLETED
+}
+
 model Tenant {
   id        String       @id @default(uuid())
   slug      String       @unique
@@ -85,6 +94,8 @@ model Tenant {
   inventoryStocks        InventoryPoolStock[]
   inventoryOverrides     BranchInventoryProductOverride[]
   productExclusions      BranchProductExclusion[]
+  warehouses             Warehouse[]
+  inventoryTransfers     InventoryTransfer[]
 
   @@index([status])
 }
@@ -102,19 +113,20 @@ model User {
   updatedAt        DateTime   @updatedAt
   deletedAt        DateTime?
 
-  tenant            Tenant                   @relation(fields: [tenantId], references: [id], onDelete: Restrict)
-  roleAssignments   UserRoleAssignment[]
-  refreshSessions   RefreshSession[]
-  employeeSales     Sale[]                   @relation("EmployeeSales")
-  messengerSales    Sale[]                   @relation("MessengerSales")
-  sellerSales       Sale[]                   @relation("SellerSales")
-  cashClosures      CashClosure[]            @relation("CashClosureCreator")
-  inventoryReports  InventoryReport[]        @relation("InventoryReportCreator")
-  auditLogs         AuditLog[]
-  platformRoles     PlatformRoleAssignment[]
-  expenseControls   ExpenseControl[]         @relation("ExpenseControlCreator")
-  expenseReports    ExpenseReport[]          @relation("ExpenseReportCreator")
-  branchMemberships BranchMembership[]
+  tenant             Tenant                   @relation(fields: [tenantId], references: [id], onDelete: Restrict)
+  roleAssignments    UserRoleAssignment[]
+  refreshSessions    RefreshSession[]
+  employeeSales      Sale[]                   @relation("EmployeeSales")
+  messengerSales     Sale[]                   @relation("MessengerSales")
+  sellerSales        Sale[]                   @relation("SellerSales")
+  cashClosures       CashClosure[]            @relation("CashClosureCreator")
+  inventoryReports   InventoryReport[]        @relation("InventoryReportCreator")
+  auditLogs          AuditLog[]
+  platformRoles      PlatformRoleAssignment[]
+  expenseControls    ExpenseControl[]         @relation("ExpenseControlCreator")
+  expenseReports     ExpenseReport[]          @relation("ExpenseReportCreator")
+  branchMemberships  BranchMembership[]
+  inventoryTransfers InventoryTransfer[]
 
   @@index([tenantId])
   @@index([tenantId, email])
@@ -123,32 +135,34 @@ model User {
 }
 
 model Branch {
-  id                     String       @id @default(uuid())
-  tenantId               String
-  name                   String
-  normalizedName         String
-  code                   String
-  address                String?
-  phone                  String?
-  status                 BranchStatus @default(ACTIVE)
-  isPrimary              Boolean      @default(false)
-  createdAt              DateTime     @default(now())
-  updatedAt              DateTime     @updatedAt
-  defaultInventoryPoolId String?
+  id                      String       @id @default(uuid())
+  tenantId                String
+  name                    String
+  normalizedName          String
+  code                    String
+  address                 String?
+  phone                   String?
+  status                  BranchStatus @default(ACTIVE)
+  isPrimary               Boolean      @default(false)
+  createdAt               DateTime     @default(now())
+  updatedAt               DateTime     @updatedAt
+  defaultInventoryPoolId  String?
   sourceInventoryBranchId String?
 
-  tenant               Tenant                           @relation(fields: [tenantId], references: [id], onDelete: Restrict)
-  memberships          BranchMembership[]
-  defaultInventoryPool InventoryPool?                   @relation("BranchDefaultInventoryPool", fields: [defaultInventoryPoolId], references: [id], onDelete: Restrict)
-  sourceInventoryBranch Branch?                         @relation("BranchInventorySource", fields: [sourceInventoryBranchId], references: [id], onDelete: SetNull)
-  inventorySharingTargets Branch[]                      @relation("BranchInventorySource")
-  inventoryOverrides   BranchInventoryProductOverride[]
-  productExclusions    BranchProductExclusion[]
-  sales                Sale[]
-  cashClosures         CashClosure[]
-  inventoryReports     InventoryReport[]
-  expenseControls      ExpenseControl[]
-  expenseReports       ExpenseReport[]
+  tenant                  Tenant                           @relation(fields: [tenantId], references: [id], onDelete: Restrict)
+  memberships             BranchMembership[]
+  defaultInventoryPool    InventoryPool?                   @relation("BranchDefaultInventoryPool", fields: [defaultInventoryPoolId], references: [id], onDelete: Restrict)
+  sourceInventoryBranch   Branch?                          @relation("BranchInventorySource", fields: [sourceInventoryBranchId], references: [id], onDelete: SetNull)
+  inventorySharingTargets Branch[]                         @relation("BranchInventorySource")
+  inventoryOverrides      BranchInventoryProductOverride[]
+  productExclusions       BranchProductExclusion[]
+  sales                   Sale[]
+  cashClosures            CashClosure[]
+  inventoryReports        InventoryReport[]
+  expenseControls         ExpenseControl[]
+  expenseReports          ExpenseReport[]
+  warehouses              Warehouse[]
+  inventoryTransfers      InventoryTransfer[]
 
   @@unique([tenantId, normalizedName])
   @@unique([tenantId, code])
@@ -170,9 +184,71 @@ model InventoryPool {
   stocks          InventoryPoolStock[]
   overrides       BranchInventoryProductOverride[]
   saleDetails     SaleDetail[]
+  warehouse       Warehouse?
 
   @@unique([tenantId, normalizedName])
   @@index([tenantId])
+}
+
+model Warehouse {
+  id              String          @id @default(uuid())
+  tenantId        String
+  branchId        String
+  inventoryPoolId String          @unique
+  name            String
+  normalizedName  String
+  code            String
+  status          WarehouseStatus @default(ACTIVE)
+  isDefault       Boolean         @default(false)
+  createdAt       DateTime        @default(now())
+  updatedAt       DateTime        @updatedAt
+
+  tenant            Tenant              @relation(fields: [tenantId], references: [id], onDelete: Restrict)
+  branch            Branch              @relation(fields: [branchId], references: [id], onDelete: Restrict)
+  inventoryPool     InventoryPool       @relation(fields: [inventoryPoolId], references: [id], onDelete: Restrict)
+  outgoingTransfers InventoryTransfer[] @relation("InventoryTransferSource")
+  incomingTransfers InventoryTransfer[] @relation("InventoryTransferDestination")
+
+  @@unique([branchId, normalizedName])
+  @@unique([branchId, code])
+  @@index([tenantId, branchId, status])
+}
+
+model InventoryTransfer {
+  id                     String                  @id @default(uuid())
+  tenantId               String
+  branchId               String
+  sourceWarehouseId      String
+  destinationWarehouseId String
+  createdById            String
+  status                 InventoryTransferStatus @default(COMPLETED)
+  reference              String?
+  note                   String?
+  createdAt              DateTime                @default(now())
+
+  tenant               Tenant                  @relation(fields: [tenantId], references: [id], onDelete: Restrict)
+  branch               Branch                  @relation(fields: [branchId], references: [id], onDelete: Restrict)
+  sourceWarehouse      Warehouse               @relation("InventoryTransferSource", fields: [sourceWarehouseId], references: [id], onDelete: Restrict)
+  destinationWarehouse Warehouse               @relation("InventoryTransferDestination", fields: [destinationWarehouseId], references: [id], onDelete: Restrict)
+  createdBy            User                    @relation(fields: [createdById], references: [id], onDelete: Restrict)
+  items                InventoryTransferItem[]
+
+  @@index([tenantId, branchId, createdAt])
+  @@index([sourceWarehouseId, createdAt])
+  @@index([destinationWarehouseId, createdAt])
+}
+
+model InventoryTransferItem {
+  id         String @id @default(uuid())
+  transferId String
+  productId  String
+  quantity   Int
+
+  transfer InventoryTransfer @relation(fields: [transferId], references: [id], onDelete: Restrict)
+  product  Store             @relation(fields: [productId], references: [id], onDelete: Restrict)
+
+  @@unique([transferId, productId])
+  @@index([productId])
 }
 
 model InventoryPoolStock {
@@ -339,13 +415,14 @@ model Store {
   updatedAt     DateTime  @updatedAt
   deletedAt     DateTime?
 
-  tenant             Tenant                           @relation(fields: [tenantId], references: [id], onDelete: Restrict)
-  roleAssignments    UserRoleAssignment[]
-  saleDetails        SaleDetail[]
-  inventoryDetails   InventoryReportDetail[]
-  inventoryStocks    InventoryPoolStock[]
-  inventoryOverrides BranchInventoryProductOverride[]
-  branchExclusions   BranchProductExclusion[]
+  tenant                 Tenant                           @relation(fields: [tenantId], references: [id], onDelete: Restrict)
+  roleAssignments        UserRoleAssignment[]
+  saleDetails            SaleDetail[]
+  inventoryDetails       InventoryReportDetail[]
+  inventoryStocks        InventoryPoolStock[]
+  inventoryOverrides     BranchInventoryProductOverride[]
+  branchExclusions       BranchProductExclusion[]
+  inventoryTransferItems InventoryTransferItem[]
 
   @@index([tenantId])
   @@index([tenantId, name])

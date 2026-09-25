@@ -32,6 +32,7 @@ describeDb('tenant provisioning', () => {
       await prisma.expenseCategory.deleteMany({ where: { tenantId: tenant.id } });
       await prisma.branchMembership.deleteMany({ where: { tenantId: tenant.id } });
       await prisma.inventoryPoolStock.deleteMany({ where: { tenantId: tenant.id } });
+      await prisma.warehouse.deleteMany({ where: { tenantId: tenant.id } });
       await prisma.branch.deleteMany({ where: { tenantId: tenant.id } });
       await prisma.inventoryPool.deleteMany({ where: { tenantId: tenant.id } });
       await prisma.user.deleteMany({ where: { tenantId: tenant.id } });

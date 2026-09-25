@@ -9,7 +9,8 @@ export const rbacResources = [
   'reports',
   'audit-logs',
   'expense-controls',
-  'branches'
+  'branches',
+  'warehouses'
 ] as const;
 
 export const rbacActions = [
@@ -28,7 +29,8 @@ export const rbacActions = [
   'cash-detail-messengers',
   'cash-detail-sellers',
   'cash-detail-employees',
-  'inventory'
+  'inventory',
+  'transfer'
 ] as const;
 
 export const rbacScopes = ['global', 'store', 'own', 'assigned'] as const;
