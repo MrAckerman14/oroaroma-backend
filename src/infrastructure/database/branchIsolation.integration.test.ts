@@ -20,6 +20,7 @@ describeDb('branch tenant isolation', () => {
   });
   afterAll(async () => {
     await prisma.branchMembership.deleteMany({ where: { tenantId: { in: [tenantA, tenantB] } } });
+    await prisma.warehouse.deleteMany({ where: { tenantId: { in: [tenantA, tenantB] } } });
     await prisma.branch.deleteMany({ where: { tenantId: { in: [tenantA, tenantB] } } });
     await prisma.inventoryPool.deleteMany({ where: { tenantId: { in: [tenantA, tenantB] } } });
     await prisma.user.deleteMany({ where: { tenantId: { in: [tenantA, tenantB] } } });
