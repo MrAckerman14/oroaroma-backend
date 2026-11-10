@@ -11,6 +11,7 @@ import { tenantRoutes } from './tenantRoutes.js';
 import { expenseRoutes } from './expenseRoutes.js';
 import { branchRoutes } from './branchRoutes.js';
 import { warehouseRoutes } from './warehouseRoutes.js';
+import { invoicingRoutes } from './invoicingRoutes.js';
 
 export async function registerRoutes(app: FastifyInstance) {
   await app.register(healthRoutes);
@@ -25,4 +26,5 @@ export async function registerRoutes(app: FastifyInstance) {
   await app.register(expenseRoutes);
   await app.register(branchRoutes);
   await app.register(warehouseRoutes);
+  await app.register(invoicingRoutes);
 }

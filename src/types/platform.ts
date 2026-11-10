@@ -13,7 +13,8 @@ export const tenantModuleKeys = [
   'inventory',
   'cash-closures',
   'inventory-reports',
-  'expenses'
+  'expenses',
+  'e-invoicing'
 ] as const;
 
 export type PlatformPermissionKey = (typeof platformPermissionKeys)[number];

@@ -41,7 +41,8 @@ export const permissionResourceLabels: Record<string, string> = {
   'inventory-reports': 'reportes de inventario',
   reports: 'reportes',
   'audit-logs': 'auditoria',
-  warehouses: 'almacenes'
+  warehouses: 'almacenes',
+  'fiscal-documents': 'facturas electrónicas'
 };
 
 export const permissionActionLabels: Record<string, string> = {

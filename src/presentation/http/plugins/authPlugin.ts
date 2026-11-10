@@ -141,7 +141,8 @@ function moduleForResource(resource: RbacResource): TenantModuleKey | null {
     'inventory-reports': 'inventory-reports',
     'expense-controls': 'expenses',
     branches: 'users',
-    warehouses: 'inventory'
+    warehouses: 'inventory',
+    'fiscal-documents': 'e-invoicing'
   };
   return modules[resource] ?? null;
 }
