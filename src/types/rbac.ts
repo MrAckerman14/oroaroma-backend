@@ -10,7 +10,8 @@ export const rbacResources = [
   'audit-logs',
   'expense-controls',
   'branches',
-  'warehouses'
+  'warehouses',
+  'fiscal-documents'
 ] as const;
 
 export const rbacActions = [

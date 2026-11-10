@@ -49,7 +49,10 @@ export async function saleRoutes(app: FastifyInstance) {
     async (request) => {
       const params = idParamsSchema.parse(request.params);
       const input = updateSaleSchema.parse(request.body);
-      return { data: await sales.update(params.id, request.authUser!, request.branchId, input) };
+      const sale = await sales.update(params.id, request.authUser!, request.branchId, input);
+      if (input.status !== 'FINALIZED') return { data: sale };
+      const fiscalDocument = await app.container.invoicing.autoIssueAfterFinalize(request.authUser!, request.branchId, params.id);
+      return fiscalDocument ? { data: sale, fiscalDocument } : { data: sale };
     }
   );
 

@@ -65,7 +65,11 @@ const permissions = [
   ['warehouses:read:assigned', 'warehouses', 'read', PermissionScope.ASSIGNED],
   ['warehouses:update:global', 'warehouses', 'update', PermissionScope.GLOBAL],
   ['warehouses:transfer:global', 'warehouses', 'transfer', PermissionScope.GLOBAL],
-  ['warehouses:transfer:assigned', 'warehouses', 'transfer', PermissionScope.ASSIGNED]
+  ['warehouses:transfer:assigned', 'warehouses', 'transfer', PermissionScope.ASSIGNED],
+  ['fiscal-documents:read:global', 'fiscal-documents', 'read', PermissionScope.GLOBAL],
+  ['fiscal-documents:create:global', 'fiscal-documents', 'create', PermissionScope.GLOBAL],
+  ['fiscal-documents:void:global', 'fiscal-documents', 'void', PermissionScope.GLOBAL],
+  ['fiscal-documents:update:global', 'fiscal-documents', 'update', PermissionScope.GLOBAL]
 ] as const;
 
 const roleDefinitions = {

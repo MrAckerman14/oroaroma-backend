@@ -52,7 +52,12 @@ const envSchema = z.object({
   CURRENCY_DECIMAL_SEPARATOR: z.string().min(1).max(1).default('.'),
   CURRENCY_MINOR_UNIT_DIGITS: z.coerce.number().int().min(0).max(4).default(2),
   CURRENCY_TRIM_ZERO_MINOR_UNITS: booleanEnv('true'),
-  CURRENCY_SYMBOL_SPACING: booleanEnv('false')
+  CURRENCY_SYMBOL_SPACING: booleanEnv('false'),
+  // Facturación electrónica: clave para cifrar credenciales del proveedor por empresa
+  // (32 bytes en base64 o hex) y token de la cuenta del proveedor de la plataforma.
+  FISCAL_SECRET_KEY: z.string().optional(),
+  ALANUBE_API_TOKEN: z.string().optional(),
+  ALANUBE_TIMEOUT_MS: z.coerce.number().int().positive().max(120000).default(30000)
 });
 
 export const env = envSchema.parse(process.env);

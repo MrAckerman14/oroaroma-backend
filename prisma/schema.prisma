@@ -96,6 +96,9 @@ model Tenant {
   productExclusions      BranchProductExclusion[]
   warehouses             Warehouse[]
   inventoryTransfers     InventoryTransfer[]
+  fiscalProfile          TenantFiscalProfile?
+  fiscalSequences        FiscalSequence[]
+  fiscalDocuments        FiscalDocument[]
 
   @@index([status])
 }
@@ -453,13 +456,14 @@ model Sale {
   updatedAt      DateTime      @updatedAt
   deletedAt      DateTime?
 
-  tenant         Tenant              @relation(fields: [tenantId], references: [id], onDelete: Restrict)
-  branch         Branch?             @relation(fields: [branchId], references: [id], onDelete: Restrict)
-  employee       User                @relation("EmployeeSales", fields: [employeeId], references: [id])
-  messenger      User?               @relation("MessengerSales", fields: [messengerId], references: [id])
-  seller         User?               @relation("SellerSales", fields: [sellerId], references: [id])
-  details        SaleDetail[]
-  closureDetails CashClosureDetail[]
+  tenant          Tenant              @relation(fields: [tenantId], references: [id], onDelete: Restrict)
+  branch          Branch?             @relation(fields: [branchId], references: [id], onDelete: Restrict)
+  employee        User                @relation("EmployeeSales", fields: [employeeId], references: [id])
+  messenger       User?               @relation("MessengerSales", fields: [messengerId], references: [id])
+  seller          User?               @relation("SellerSales", fields: [sellerId], references: [id])
+  details         SaleDetail[]
+  closureDetails  CashClosureDetail[]
+  fiscalDocuments FiscalDocument[]
 
   @@index([tenantId])
   @@index([tenantId, createdAt])
@@ -775,4 +779,120 @@ model ExpenseReportDetail {
 
   @@index([tenantId])
   @@index([expenseReportId])
+}
+
+enum FiscalProvider {
+  SIMULATED
+  ALANUBE
+}
+
+enum FiscalEnvironment {
+  TEST
+  PRODUCTION
+}
+
+enum FiscalDocumentType {
+  E31
+  E32
+  E33
+  E34
+}
+
+enum FiscalDocumentStatus {
+  PENDING
+  IN_PROCESS
+  ACCEPTED
+  ACCEPTED_WITH_OBSERVATIONS
+  REJECTED
+  FAILED
+}
+
+model TenantFiscalProfile {
+  tenantId               String            @id
+  enabled                Boolean           @default(false)
+  provider               FiscalProvider    @default(SIMULATED)
+  environment            FiscalEnvironment @default(TEST)
+  rnc                    String
+  legalName              String
+  tradeName              String?
+  address                String
+  municipality           String?
+  province               String?
+  email                  String?
+  phone                  String?
+  economicActivity       String?
+  providerCompanyId      String?
+  providerTokenEncrypted String?
+  pricesIncludeTax       Boolean           @default(true)
+  itbisRate              Int               @default(18)
+  autoIssueOnFinalize    Boolean           @default(false)
+  createdAt              DateTime          @default(now())
+  updatedAt              DateTime          @updatedAt
+
+  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+}
+
+model FiscalSequence {
+  id           String             @id @default(uuid())
+  tenantId     String
+  documentType FiscalDocumentType
+  startNumber  Int
+  endNumber    Int
+  nextNumber   Int
+  expiresAt    DateTime
+  active       Boolean            @default(true)
+  createdAt    DateTime           @default(now())
+  updatedAt    DateTime           @updatedAt
+
+  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Restrict)
+
+  @@unique([tenantId, documentType, startNumber])
+  @@index([tenantId, documentType, active])
+}
+
+model FiscalDocument {
+  id                   String               @id @default(uuid())
+  tenantId             String
+  branchId             String?
+  saleId               String?
+  referencedDocumentId String?
+  documentType         FiscalDocumentType
+  encf                 String
+  status               FiscalDocumentStatus @default(PENDING)
+  provider             FiscalProvider
+  environment          FiscalEnvironment
+  providerDocumentId   String?
+  securityCode         String?
+  signatureDate        DateTime?
+  stampDate            DateTime
+  stampUrl             String?
+  pdfUrl               String?
+  xmlUrl               String?
+  buyerRnc             String?
+  buyerName            String?
+  buyerEmail           String?
+  taxedAmount          Decimal              @db.Decimal(14, 2)
+  exemptAmount         Decimal              @default(0) @db.Decimal(14, 2)
+  itbisAmount          Decimal              @db.Decimal(14, 2)
+  totalAmount          Decimal              @db.Decimal(14, 2)
+  modificationCode     Int?
+  reason               String?
+  errorMessage         String?
+  payload              Json
+  providerResponse     Json?
+  attempts             Int                  @default(0)
+  issuedById           String
+  createdAt            DateTime             @default(now())
+  updatedAt            DateTime             @updatedAt
+
+  tenant             Tenant           @relation(fields: [tenantId], references: [id], onDelete: Restrict)
+  sale               Sale?            @relation(fields: [saleId], references: [id], onDelete: Restrict)
+  referencedDocument FiscalDocument?  @relation("FiscalDocumentReference", fields: [referencedDocumentId], references: [id], onDelete: Restrict)
+  creditNotes        FiscalDocument[] @relation("FiscalDocumentReference")
+
+  @@unique([tenantId, encf])
+  @@index([tenantId, createdAt])
+  @@index([tenantId, saleId])
+  @@index([tenantId, status])
+  @@index([referencedDocumentId])
 }
